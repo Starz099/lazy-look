@@ -1,0 +1,12 @@
+build/
+compile_commands.json
+
+product-development/
+
+.cache/
+.vscode/
+.idea/
+
+*.o
+*.so
+*.a
