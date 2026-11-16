@@ -2,6 +2,7 @@ include(FetchContent)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+pkg_check_modules(POPPLER_CPP IMPORTED_TARGET poppler-cpp)
 
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -35,6 +36,8 @@ add_library(lazyfinder_core STATIC
   lazyfinder.cc
   embedder.cc
   database.cc
+  extractor.cc
+  indexer.cc
 )
 
 target_compile_definitions(lazyfinder_core
@@ -42,6 +45,11 @@ target_compile_definitions(lazyfinder_core
     SQLITE_CORE
     SQLITE_VEC_STATIC
 )
+
+if(POPPLER_CPP_FOUND)
+  target_compile_definitions(lazyfinder_core PUBLIC HAVE_POPPLER)
+  target_link_libraries(lazyfinder_core PUBLIC PkgConfig::POPPLER_CPP)
+endif()
 
 target_include_directories(lazyfinder_core
   PUBLIC

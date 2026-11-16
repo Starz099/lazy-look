@@ -1,33 +1,112 @@
 #include "database.hh"
 #include "embedder.hh"
+#include "indexer.hh"
 #include "lazyfinder.hh"
 
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
 #include <string_view>
 #include <vector>
 
+namespace
+{
+
+std::string default_model_path()
+{
+  const char *xdg_data = std::getenv("XDG_DATA_HOME");
+  if (xdg_data && *xdg_data) {
+    return (std::filesystem::path(xdg_data) / "lazyfinder" / "models" /
+            "embeddinggemma-2-BF16.gguf")
+        .string();
+  }
+
+  const char *home = std::getenv("HOME");
+  if (home && *home) {
+    return (std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models" /
+            "embeddinggemma-2-BF16.gguf")
+        .string();
+  }
+
+  return "embeddinggemma-2-BF16.gguf";
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
-  if (argc >= 4 && std::string_view(argv[1]) == "--test-embed") {
-    const std::string_view model_path = argv[2];
-    const std::string_view query_text = argv[3];
+  if (argc >= 3 && std::string_view(argv[1]) == "--index") {
+    const std::filesystem::path target_dir = argv[2];
+    std::error_code ec;
+    if (!std::filesystem::exists(target_dir, ec) ||
+        !std::filesystem::is_directory(target_dir, ec)) {
+      std::fprintf(stderr, "Directory does not exist: %s\n", argv[2]);
+      return 1;
+    }
 
+    const std::string model_path = default_model_path();
     lazyfinder::Embedder embedder;
-    std::printf("Loading model from: %s\n", argv[2]);
+    std::printf("Loading embedding model...\n");
     if (!embedder.load_model(model_path)) {
-      std::fprintf(stderr, "Failed to load model\n");
+      std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
       return 1;
     }
 
-    std::printf("Model loaded. Embedding dim: %d\n", embedder.embedding_dim());
-    const auto vec = embedder.embed_query(query_text);
-    if (vec.empty()) {
-      std::fprintf(stderr, "Failed to generate embedding\n");
+    lazyfinder::Database db;
+    if (!db.open()) {
+      std::fprintf(stderr, "Failed to open database\n");
       return 1;
     }
 
-    std::printf("Generated embedding vector of size %zu\n", vec.size());
-    std::printf("Sample values: [%.5f, %.5f, %.5f, %.5f, ...]\n", vec[0], vec[1], vec[2], vec[3]);
+    lazyfinder::Indexer indexer(db, embedder);
+    indexer.add_watched_directory(target_dir);
+
+    std::printf("Indexing directory: %s\n", argv[2]);
+    const auto stats = indexer.index_all();
+
+    std::printf("Done. Scanned: %zu, Newly Indexed: %zu, Unchanged: %zu, Errors: %zu\n",
+                stats.scanned,
+                stats.indexed,
+                stats.skipped,
+                stats.errors);
+    std::printf(
+        "Total files in index: %ld (total chunks: %ld)\n", db.total_files(), db.total_chunks());
+    return 0;
+  }
+
+  if (argc >= 3 && std::string_view(argv[1]) == "--search") {
+    const std::string_view query_text = argv[2];
+
+    const std::string model_path = default_model_path();
+    lazyfinder::Embedder embedder;
+    if (!embedder.load_model(model_path)) {
+      std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
+      return 1;
+    }
+
+    lazyfinder::Database db;
+    if (!db.open()) {
+      std::fprintf(stderr, "Failed to open database\n");
+      return 1;
+    }
+
+    const auto query_emb = embedder.embed_query(query_text);
+    const auto results = db.search_hybrid(query_emb, query_text, 10);
+
+    if (results.empty()) {
+      std::printf("No matching files found.\n");
+      return 0;
+    }
+
+    std::printf("Found %zu results for \"%s\":\n\n", results.size(), argv[2]);
+    for (size_t i = 0; i < results.size(); ++i) {
+      std::printf("%zu. [%.4f] %s\n   %s\n\n",
+                  i + 1,
+                  results[i].score,
+                  results[i].path.c_str(),
+                  results[i].snippet.c_str());
+    }
     return 0;
   }
 
@@ -74,63 +153,12 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  if (argc >= 4 && std::string_view(argv[1]) == "--test-hybrid") {
-    const std::string_view model_path = argv[2];
-    const std::string_view query_text = argv[3];
-
-    lazyfinder::Embedder embedder;
-    std::printf("Loading model: %s\n", argv[2]);
-    if (!embedder.load_model(model_path)) {
-      std::fprintf(stderr, "Failed to load model\n");
-      return 1;
-    }
-
-    lazyfinder::Database db;
-    if (!db.open(":memory:")) {
-      std::fprintf(stderr, "Failed to open in-memory database\n");
-      return 1;
-    }
-
-    struct SampleDoc
-    {
-      std::string path;
-      std::string content;
-    };
-
-    std::vector<SampleDoc> docs = {
-        {"/docs/quarterly_budget.txt",
-         "The Q3 budget forecast includes marketing expenses, employee salaries, and vendor "
-         "contracts totaling two million dollars."},
-        {"/code/http_router.rs",
-         "pub struct Router { routes: HashMap<String, Box<dyn Handler>> } impl Router { pub fn "
-         "add_route(&mut self, path: &str) { } }"},
-        {"/notes/vacation_plans.md",
-         "Pack sunscreen, beach towels, and camera gear for the summer holiday trip to Greece."}};
-
-    std::printf("Embedding and indexing %zu sample documents...\n", docs.size());
-    for (const auto &doc : docs) {
-      auto emb = embedder.embed_document(doc.content);
-      db.index_file(
-          doc.path, static_cast<int64_t>(doc.content.size()), 1700000000, {doc.content}, {emb});
-    }
-
-    std::printf("Running hybrid search for query: \"%s\"\n", argv[3]);
-    auto query_emb = embedder.embed_query(query_text);
-    auto results = db.search_hybrid(query_emb, query_text, 10);
-
-    std::printf("\nRanked Results (Combined Vector + Lexical RRF):\n");
-    for (size_t i = 0; i < results.size(); ++i) {
-      std::printf("  %zu. Score: %.4f | File: %s\n     Snippet: %s\n",
-                  i + 1,
-                  results[i].score,
-                  results[i].path.c_str(),
-                  results[i].snippet.c_str());
-    }
-    return 0;
-  }
-
   std::printf("lazyfinderd %.*s\n",
               static_cast<int>(lazyfinder::version.size()),
               lazyfinder::version.data());
+  std::printf("Usage:\n");
+  std::printf("  lazyfinderd --index <directory>   Index a directory\n");
+  std::printf("  lazyfinderd --search <query>      Search the index with natural language\n");
+  std::printf("  lazyfinderd --test-db             Run database unit test\n");
   return 0;
 }
