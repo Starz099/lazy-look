@@ -1,0 +1,72 @@
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace lazyfinder
+{
+
+struct FileRecord
+{
+  int64_t id = 0;
+  std::string path;
+  int64_t size = 0;
+  int64_t mtime = 0;
+  int64_t indexed_at = 0;
+};
+
+struct SearchResult
+{
+  std::string path;
+  std::string snippet;
+  float score = 0.0f;
+  int64_t file_id = 0;
+};
+
+class Database
+{
+public:
+  Database();
+  ~Database();
+
+  Database(const Database &) = delete;
+  Database &operator=(const Database &) = delete;
+  Database(Database &&) noexcept;
+  Database &operator=(Database &&) noexcept;
+
+  bool open(std::string_view db_path = "");
+  void close();
+  [[nodiscard]] bool is_open() const;
+
+  std::optional<FileRecord> get_file(std::string_view path);
+  bool needs_reindex(std::string_view path, int64_t size, int64_t mtime);
+
+  bool index_file(std::string_view path,
+                  int64_t size,
+                  int64_t mtime,
+                  const std::vector<std::string> &chunks,
+                  const std::vector<std::vector<float>> &embeddings);
+
+  bool remove_file(std::string_view path);
+
+  std::vector<SearchResult> search_hybrid(const std::vector<float> &query_embedding,
+                                          std::string_view query_text,
+                                          size_t limit = 20);
+
+  int64_t total_files();
+  int64_t total_chunks();
+
+private:
+  bool init_schema();
+
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+std::string default_database_path();
+
+} // namespace lazyfinder
