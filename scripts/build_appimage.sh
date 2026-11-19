@@ -18,10 +18,45 @@ mkdir -p "${APPDIR}/usr/bin"
 mkdir -p "${APPDIR}/usr/lib"
 mkdir -p "${APPDIR}/usr/share/applications"
 mkdir -p "${APPDIR}/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "${APPDIR}/usr/share/lazyfinder/models"
 
 cp "${BUILD_DIR}/src/ui/lazyfinder" "${APPDIR}/usr/bin/"
+if [[ -f "${BUILD_DIR}/src/daemon/lazyfinderd" ]]; then
+    cp "${BUILD_DIR}/src/daemon/lazyfinderd" "${APPDIR}/usr/bin/"
+fi
 cp "${ROOT_DIR}/resources/lazyfinder.desktop" "${APPDIR}/usr/share/applications/"
 cp "${ROOT_DIR}/resources/icons/lazyfinder.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/"
+
+# Bundle embedding model for zero-setup out of the box
+MODEL_CANDIDATES=(
+    "${ROOT_DIR}/models/embeddinggemma-2-Q8_0.gguf"
+    "${ROOT_DIR}/models/embeddinggemma-2-BF16.gguf"
+    "${BUILD_DIR}/models/embeddinggemma-2-Q8_0.gguf"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/embeddinggemma-2-Q8_0.gguf"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/embeddinggemma-2-BF16.gguf"
+)
+BUNDLED=0
+for cand in "${MODEL_CANDIDATES[@]}"; do
+    if [[ -f "${cand}" ]]; then
+        echo "==> Bundling AI embedding model from: ${cand}"
+        cp "${cand}" "${APPDIR}/usr/share/lazyfinder/models/embeddinggemma-2-Q8_0.gguf"
+        BUNDLED=1
+        break
+    fi
+done
+
+if [[ ${BUNDLED} -eq 0 ]]; then
+    echo "==> Notice: No local model found to bundle into AppImage."
+fi
+
+# Bundle companion vision projector if present
+for vcand in "${ROOT_DIR}/models/mmproj-embeddinggemma-2.gguf" "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/mmproj-embeddinggemma-2.gguf"; do
+    if [[ -f "${vcand}" ]]; then
+        echo "==> Bundling vision projector from: ${vcand}"
+        cp "${vcand}" "${APPDIR}/usr/share/lazyfinder/models/"
+        break
+    fi
+done
 
 # Top-level AppImage requirements
 cp "${ROOT_DIR}/resources/lazyfinder.desktop" "${APPDIR}/"

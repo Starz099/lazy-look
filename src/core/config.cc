@@ -100,6 +100,123 @@ std::string Config::collapse_path(std::string_view path)
   return std::string(path);
 }
 
+std::vector<std::filesystem::path> Config::model_search_directories()
+{
+  std::vector<std::filesystem::path> dirs;
+  std::error_code ec;
+
+  // 1. Explicit environment override
+  const char *env_dir = std::getenv("LAZYFINDER_MODELS_DIR");
+  if (env_dir && *env_dir) {
+    dirs.emplace_back(env_dir);
+  }
+
+  // 2. Application-relative directory (AppImage / portable bundle)
+  if (std::filesystem::exists("/proc/self/exe", ec)) {
+    const auto exe_path = std::filesystem::canonical("/proc/self/exe", ec);
+    if (!ec && !exe_path.empty()) {
+      const auto exe_dir = exe_path.parent_path();
+      // AppDir layout: ${APPDIR}/usr/bin/lazyfinder -> ${APPDIR}/usr/share/lazyfinder/models
+      dirs.push_back(exe_dir.parent_path() / "share" / "lazyfinder" / "models");
+      // Portable binary folder: <dir>/models
+      dirs.push_back(exe_dir / "models");
+    }
+  }
+
+  // 3. User XDG Data Home
+  const char *xdg_data = std::getenv("XDG_DATA_HOME");
+  if (xdg_data && *xdg_data) {
+    dirs.push_back(std::filesystem::path(xdg_data) / "lazyfinder" / "models");
+  }
+  else {
+    const std::string home = get_default_home();
+    if (!home.empty()) {
+      dirs.push_back(std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models");
+    }
+  }
+
+  // 4. System-wide directories
+  dirs.emplace_back("/usr/share/lazyfinder/models");
+  dirs.emplace_back("/usr/local/share/lazyfinder/models");
+
+  // 5. Working directory fallbacks
+  dirs.push_back(std::filesystem::current_path() / "models");
+  dirs.push_back(std::filesystem::current_path());
+
+  return dirs;
+}
+
+std::string Config::default_user_model_path(std::string_view filename)
+{
+  const std::string fname = filename.empty() ? "embeddinggemma-2-Q8_0.gguf" : std::string(filename);
+  const char *xdg_data = std::getenv("XDG_DATA_HOME");
+  if (xdg_data && *xdg_data) {
+    return (std::filesystem::path(xdg_data) / "lazyfinder" / "models" / fname).string();
+  }
+  const std::string home = get_default_home();
+  if (!home.empty()) {
+    return (std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models" / fname)
+        .string();
+  }
+  return fname;
+}
+
+std::string Config::resolve_model_path(std::string_view preferred_model)
+{
+  std::error_code ec;
+
+  // If a direct absolute/relative path was passed and exists, return it
+  if (!preferred_model.empty()) {
+    std::filesystem::path p(preferred_model);
+    if (std::filesystem::exists(p, ec) && !std::filesystem::is_directory(p, ec)) {
+      return std::filesystem::canonical(p, ec).string();
+    }
+  }
+
+  const auto search_dirs = model_search_directories();
+
+  if (!preferred_model.empty()) {
+    for (const auto &dir : search_dirs) {
+      if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
+        continue;
+      }
+      const auto specific = dir / preferred_model;
+      if (std::filesystem::exists(specific, ec) && !std::filesystem::is_directory(specific, ec)) {
+        return specific.string();
+      }
+    }
+    return "";
+  }
+
+  static const std::vector<std::string> candidates = {"embeddinggemma-2-Q8_0.gguf",
+                                                      "embeddinggemma-2-BF16.gguf",
+                                                      "embeddinggemma2-q8_0.gguf",
+                                                      "embeddinggemma-2.gguf"};
+
+  for (const auto &dir : search_dirs) {
+    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
+      continue;
+    }
+
+    for (const auto &cand : candidates) {
+      const auto cand_path = dir / cand;
+      if (std::filesystem::exists(cand_path, ec) && !std::filesystem::is_directory(cand_path, ec)) {
+        return cand_path.string();
+      }
+    }
+  }
+
+  return default_user_model_path();
+}
+
+bool Config::is_model_installed(std::string_view preferred_model)
+{
+  std::error_code ec;
+  const std::string path = resolve_model_path(preferred_model);
+  return !path.empty() && std::filesystem::exists(path, ec) &&
+         !std::filesystem::is_directory(path, ec);
+}
+
 bool Config::load()
 {
   const std::string file_path = config_file_path();

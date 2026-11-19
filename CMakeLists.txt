@@ -24,9 +24,15 @@ add_subdirectory(tests)
 
 include(GNUInstallDirs)
 
-install(TARGETS lazyfinder
+install(TARGETS lazyfinder lazyfinderd
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/models/embeddinggemma-2-Q8_0.gguf")
+  install(FILES "${CMAKE_SOURCE_DIR}/models/embeddinggemma-2-Q8_0.gguf"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/lazyfinder/models
+  )
+endif()
 
 install(FILES resources/lazyfinder.desktop
   DESTINATION ${CMAKE_INSTALL_DATADIR}/applications

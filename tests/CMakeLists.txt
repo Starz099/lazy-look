@@ -13,3 +13,11 @@ target_link_libraries(test_database
   PRIVATE lazyfinder_core
 )
 add_test(NAME DatabaseTests COMMAND test_database)
+
+add_executable(test_config
+  test_config.cc
+)
+target_link_libraries(test_config
+  PRIVATE lazyfinder_core
+)
+add_test(NAME ConfigTests COMMAND test_config)

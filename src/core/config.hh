@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,6 +43,11 @@ public:
 
   static std::string expand_path(std::string_view path);
   static std::string collapse_path(std::string_view path);
+
+  static std::vector<std::filesystem::path> model_search_directories();
+  static std::string default_user_model_path(std::string_view filename = "");
+  static std::string resolve_model_path(std::string_view preferred_model = "");
+  static bool is_model_installed(std::string_view preferred_model = "");
 
 private:
   Config();

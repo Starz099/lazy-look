@@ -1,5 +1,6 @@
 #include "embedder.hh"
 
+#include "config.hh"
 #include "pipeline/image_handler.hh"
 
 #include <algorithm>
@@ -113,9 +114,10 @@ bool Embedder::load_model(std::string_view model_path)
     impl_->model = nullptr;
   }
 
+  std::string path_str =
+      model_path.empty() ? Config::resolve_model_path() : std::string(model_path);
   llama_model_params mparams = llama_model_default_params();
   mparams.n_gpu_layers = 99;
-  std::string path_str(model_path);
   impl_->model = llama_model_load_from_file(path_str.c_str(), mparams);
   if (!impl_->model) {
     return false;
@@ -151,27 +153,41 @@ bool Embedder::load_model(std::string_view model_path)
     impl_->n_embd = llama_model_n_embd(impl_->model);
   }
 
-  // Probe companion vision projector in model directory
-  std::filesystem::path mpath(model_path);
+  // Probe companion vision projector in model directory and search directories
+  std::filesystem::path mpath(path_str);
   const auto parent = mpath.parent_path();
+  std::vector<std::filesystem::path> search_dirs = {parent};
+  for (const auto &d : Config::model_search_directories()) {
+    if (d != parent) {
+      search_dirs.push_back(d);
+    }
+  }
+
   std::error_code ec;
-  for (const auto &cand : {"mmproj.gguf",
-                           "mmproj-model-f16.gguf",
-                           "mmproj-f16.gguf",
-                           "mmproj-embeddinggemma-2.gguf"}) {
-    const auto p = parent / cand;
-    if (std::filesystem::exists(p, ec)) {
-      std::string mm_path = p.string();
-#ifdef HAVE_MTMD
-      mtmd_context_params mtparams = mtmd_context_params_default();
-      mtparams.use_gpu = gpu_offload;
-      impl_->mmproj_ctx = mtmd_init_from_file(mm_path.c_str(), impl_->model, mtparams);
-      if (impl_->mmproj_ctx) {
-        std::cout << "[LazyFinder Embedder] Loaded multimodal vision projector: " << mm_path
-                  << std::endl;
-      }
-#endif
+  bool projector_found = false;
+  for (const auto &dir : search_dirs) {
+    if (projector_found) {
       break;
+    }
+    for (const auto &cand : {"mmproj.gguf",
+                             "mmproj-model-f16.gguf",
+                             "mmproj-f16.gguf",
+                             "mmproj-embeddinggemma-2.gguf"}) {
+      const auto p = dir / cand;
+      if (std::filesystem::exists(p, ec) && !std::filesystem::is_directory(p, ec)) {
+        std::string mm_path = p.string();
+#ifdef HAVE_MTMD
+        mtmd_context_params mtparams = mtmd_context_params_default();
+        mtparams.use_gpu = gpu_offload;
+        impl_->mmproj_ctx = mtmd_init_from_file(mm_path.c_str(), impl_->model, mtparams);
+        if (impl_->mmproj_ctx) {
+          std::cout << "[LazyFinder Embedder] Loaded multimodal vision projector: " << mm_path
+                    << std::endl;
+          projector_found = true;
+          break;
+        }
+#endif
+      }
     }
   }
 

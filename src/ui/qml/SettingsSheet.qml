@@ -341,7 +341,73 @@ Rectangle {
         }
 
         // ==========================================
-        // Section 3: System & Preferences
+        // Section 3: AI Engine & Models
+        // ==========================================
+        Text {
+          text: "AI Neural Engine"
+          font.pixelSize: 12
+          font.bold: true
+          color: "#deddda"
+        }
+
+        Item {
+          width: parent.width
+          height: 34
+
+          Column {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+
+            Text {
+              text: "Embedding Weights"
+              font.pixelSize: 12
+              color: "#ffffff"
+            }
+
+            Text {
+              text: searchController.isModelInstalled ? "EmbeddingGemma-2 ready (768d vector space)" : "Model not found (run scripts/setup_models.sh)"
+              font.pixelSize: 10
+              color: searchController.isModelInstalled ? "#2ec27e" : "#f66151"
+            }
+          }
+
+          Rectangle {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            height: 26
+            width: modelDirBtnText.implicitWidth + 18
+            radius: 5
+            color: modelDirMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.1)
+
+            Text {
+              id: modelDirBtnText
+              anchors.centerIn: parent
+              text: "Models Folder"
+              font.pixelSize: 11
+              color: "#ffffff"
+            }
+
+            MouseArea {
+              id: modelDirMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                searchController.openModelDirectory();
+              }
+            }
+          }
+        }
+
+        Rectangle {
+          width: parent.width
+          height: 1
+          color: Qt.rgba(1, 1, 1, 0.08)
+        }
+
+        // ==========================================
+        // Section 4: System & Preferences
         // ==========================================
         Text {
           text: "System & Integration"

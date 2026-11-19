@@ -33,6 +33,8 @@ class SearchController : public QObject
   Q_PROPERTY(
       QStringList watchedDirectories READ watchedDirectories NOTIFY watchedDirectoriesChanged)
   Q_PROPERTY(bool modelLoaded READ modelLoaded NOTIFY modelLoadedChanged)
+  Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelInstalledChanged)
+  Q_PROPERTY(QString modelPath READ modelPath NOTIFY modelPathChanged)
   Q_PROPERTY(QString globalShortcut READ globalShortcut WRITE setGlobalShortcut NOTIFY
                  globalShortcutChanged)
   Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
@@ -53,6 +55,8 @@ public:
   [[nodiscard]] qint64 totalChunks() const { return total_chunks_; }
   [[nodiscard]] QStringList watchedDirectories() const;
   [[nodiscard]] bool modelLoaded() const { return model_loaded_; }
+  [[nodiscard]] bool isModelInstalled() const;
+  [[nodiscard]] QString modelPath() const;
 
   [[nodiscard]] QString globalShortcut() const;
   Q_INVOKABLE void setGlobalShortcut(const QString &shortcut);
@@ -77,6 +81,7 @@ public:
   Q_INVOKABLE void addWatchedDirectory(const QString &dir);
   Q_INVOKABLE void removeWatchedDirectory(const QString &dir);
   Q_INVOKABLE void chooseFolderAndAdd();
+  Q_INVOKABLE void openModelDirectory();
   Q_INVOKABLE void quitApp();
 
   Q_INVOKABLE void startSync();
@@ -91,6 +96,8 @@ signals:
   void statsChanged();
   void watchedDirectoriesChanged();
   void modelLoadedChanged();
+  void modelInstalledChanged();
+  void modelPathChanged();
   void searchCompleted();
   void fileOpened();
   void globalShortcutChanged();

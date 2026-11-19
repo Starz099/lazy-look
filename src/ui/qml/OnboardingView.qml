@@ -33,6 +33,24 @@ Item {
       lineHeight: 1.3
     }
 
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      height: 24
+      width: modelBadgeText.implicitWidth + 16
+      radius: 12
+      color: searchController.isModelInstalled ? Qt.rgba(0.18, 0.76, 0.49, 0.15) : Qt.rgba(0.96, 0.38, 0.32, 0.15)
+      border.color: searchController.isModelInstalled ? "#2ec27e" : "#f66151"
+      border.width: 1
+
+      Text {
+        id: modelBadgeText
+        anchors.centerIn: parent
+        text: searchController.isModelInstalled ? "AI Semantic Search Ready" : "Keyword Search Ready (Model Not Found)"
+        font.pixelSize: 11
+        color: searchController.isModelInstalled ? "#2ec27e" : "#f66151"
+      }
+    }
+
     Item {
       width: 1
       height: 4

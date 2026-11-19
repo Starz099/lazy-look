@@ -17,40 +17,6 @@
 namespace lazyfinder
 {
 
-namespace
-{
-
-std::string get_default_model_path()
-{
-  std::filesystem::path base;
-  const char *xdg_data = std::getenv("XDG_DATA_HOME");
-  if (xdg_data && *xdg_data) {
-    base = std::filesystem::path(xdg_data) / "lazyfinder" / "models";
-  }
-  else {
-    const char *home = std::getenv("HOME");
-    if (home && *home) {
-      base = std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models";
-    }
-  }
-
-  if (!base.empty()) {
-    std::error_code ec;
-    const auto q8_path = base / "embeddinggemma-2-Q8_0.gguf";
-    if (std::filesystem::exists(q8_path, ec)) {
-      return q8_path.string();
-    }
-    const auto bf16_path = base / "embeddinggemma-2-BF16.gguf";
-    if (std::filesystem::exists(bf16_path, ec)) {
-      return bf16_path.string();
-    }
-  }
-
-  return "embeddinggemma-2-Q8_0.gguf";
-}
-
-} // namespace
-
 SearchController::SearchController(QObject *parent) : QObject(parent)
 {
   debounce_timer_.setSingleShot(true);
@@ -93,7 +59,7 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
 
   // Asynchronously load embedder weights without blocking UI
   std::thread([this]() {
-    const std::string mpath = get_default_model_path();
+    const std::string mpath = Config::resolve_model_path();
     if (embedder_.load_model(mpath)) {
       QMetaObject::invokeMethod(
           this,
@@ -470,7 +436,7 @@ void SearchController::startSync()
           },
           Qt::QueuedConnection);
 
-      const std::string mpath = get_default_model_path();
+      const std::string mpath = Config::resolve_model_path();
       std::cout << "[Sync] Model path: " << mpath << std::endl;
       if (!embedder_.load_model(mpath)) {
         std::cerr << "[Sync] ERROR: Failed to load AI model from: " << mpath << std::endl;
@@ -651,12 +617,33 @@ void SearchController::resetModelSleepTimer()
 void SearchController::ensureModelLoaded()
 {
   if (!embedder_.is_loaded()) {
-    const std::string mpath = get_default_model_path();
+    const std::string mpath = Config::resolve_model_path();
     if (embedder_.load_model(mpath)) {
       model_loaded_ = true;
       emit modelLoadedChanged();
     }
   }
+}
+
+bool SearchController::isModelInstalled() const
+{
+  return Config::is_model_installed();
+}
+
+QString SearchController::modelPath() const
+{
+  return QString::fromStdString(Config::resolve_model_path());
+}
+
+void SearchController::openModelDirectory()
+{
+  const std::string mpath = Config::resolve_model_path();
+  std::filesystem::path dir = std::filesystem::path(mpath).parent_path();
+  std::error_code ec;
+  if (!std::filesystem::exists(dir, ec)) {
+    std::filesystem::create_directories(dir, ec);
+  }
+  QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(dir.string())));
 }
 
 void SearchController::onFilesChanged(const std::vector<std::string> &changed_paths)

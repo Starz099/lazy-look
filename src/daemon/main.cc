@@ -1,3 +1,4 @@
+#include "config.hh"
 #include "database.hh"
 #include "embedder.hh"
 #include "indexer.hh"
@@ -10,40 +11,6 @@
 #include <string_view>
 #include <vector>
 
-namespace
-{
-
-std::string default_model_path()
-{
-  std::filesystem::path base;
-  const char *xdg_data = std::getenv("XDG_DATA_HOME");
-  if (xdg_data && *xdg_data) {
-    base = std::filesystem::path(xdg_data) / "lazyfinder" / "models";
-  }
-  else {
-    const char *home = std::getenv("HOME");
-    if (home && *home) {
-      base = std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models";
-    }
-  }
-
-  if (!base.empty()) {
-    std::error_code ec;
-    const auto q8_path = base / "embeddinggemma-2-Q8_0.gguf";
-    if (std::filesystem::exists(q8_path, ec)) {
-      return q8_path.string();
-    }
-    const auto bf16_path = base / "embeddinggemma-2-BF16.gguf";
-    if (std::filesystem::exists(bf16_path, ec)) {
-      return bf16_path.string();
-    }
-  }
-
-  return "embeddinggemma-2-Q8_0.gguf";
-}
-
-} // namespace
-
 int main(int argc, char *argv[])
 {
   if (argc >= 3 && std::string_view(argv[1]) == "--index") {
@@ -55,9 +22,9 @@ int main(int argc, char *argv[])
       return 1;
     }
 
-    const std::string model_path = default_model_path();
+    const std::string model_path = lazyfinder::Config::resolve_model_path();
     lazyfinder::Embedder embedder;
-    std::printf("Loading embedding model...\n");
+    std::printf("Loading embedding model from %s...\n", model_path.c_str());
     if (!embedder.load_model(model_path)) {
       std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
       return 1;
@@ -92,7 +59,7 @@ int main(int argc, char *argv[])
   if (argc >= 3 && std::string_view(argv[1]) == "--search") {
     const std::string_view query_text = argv[2];
 
-    const std::string model_path = default_model_path();
+    const std::string model_path = lazyfinder::Config::resolve_model_path();
     lazyfinder::Embedder embedder;
     if (!embedder.load_model(model_path)) {
       std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
@@ -168,7 +135,7 @@ int main(int argc, char *argv[])
   }
 
   if (argc >= 2 && std::string_view(argv[1]) == "--test-embed") {
-    const std::string model_path = default_model_path();
+    const std::string model_path = lazyfinder::Config::resolve_model_path();
     lazyfinder::Embedder embedder;
     std::printf("Loading embedding model...\n");
     if (!embedder.load_model(model_path)) {
