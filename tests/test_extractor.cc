@@ -142,6 +142,14 @@ void test_is_supported()
   TEST_ASSERT(lazyfinder::Extractor::is_supported("index.html"), ".html supported");
   TEST_ASSERT(lazyfinder::Extractor::is_supported("index.htm"), ".htm supported");
 
+  // Subtitles & Media formats
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("captions.srt"), ".srt supported");
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("CAPTIONS.SRT"), ".SRT uppercase supported");
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("subtitles.vtt"), ".vtt supported");
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("video.mp4"), ".mp4 supported");
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("movie.mkv"), ".mkv supported");
+  TEST_ASSERT(lazyfinder::Extractor::is_supported("audio.mp3"), ".mp3 supported");
+
   // Unsupported files
   TEST_ASSERT(!lazyfinder::Extractor::is_supported("binary.exe"), ".exe rejected");
   TEST_ASSERT(!lazyfinder::Extractor::is_supported("firmware.bin"), ".bin rejected");
@@ -276,6 +284,53 @@ void test_office_formats(const std::filesystem::path &dir)
   std::cout << "  ✓ All office and archive formats passed." << std::endl;
 }
 
+void test_subtitles_and_media(const std::filesystem::path &dir)
+{
+  std::cout << "[Test] Subtitle and media companion extraction..." << std::endl;
+
+  // 1. SRT subtitle file
+  const std::string srt_text = "1\n"
+                               "00:01:23,500 --> 00:01:28,000\n"
+                               "Discussion on database indexing and retrieval.\n"
+                               "\n"
+                               "2\n"
+                               "00:02:15,000 --> 00:02:20,000\n"
+                               "PostgreSQL configuration and vector performance.\n";
+  const auto srt_path = dir / "lecture.srt";
+  write_file(srt_path, srt_text);
+
+  auto srt_chunks = lazyfinder::Extractor::extract_chunks(srt_path);
+  TEST_ASSERT(!srt_chunks.empty(), "SRT chunks extracted");
+  TEST_ASSERT(srt_chunks[0].find("[01:23]") != std::string::npos, "SRT contains [01:23] timestamp");
+  TEST_ASSERT(srt_chunks[0].find("database indexing") != std::string::npos,
+              "SRT contains cue text");
+
+  // 2. WebVTT subtitle file
+  const std::string vtt_text = "WEBVTT\n"
+                               "\n"
+                               "00:00:45.000 --> 00:00:50.000\n"
+                               "Introduction to machine learning pipelines.\n";
+  const auto vtt_path = dir / "intro.vtt";
+  write_file(vtt_path, vtt_text);
+
+  auto vtt_chunks = lazyfinder::Extractor::extract_chunks(vtt_path);
+  TEST_ASSERT(!vtt_chunks.empty(), "VTT chunks extracted");
+  TEST_ASSERT(vtt_chunks[0].find("[00:45]") != std::string::npos, "VTT contains [00:45] timestamp");
+
+  // 3. Media companion: lecture.mp4 alongside lecture.srt
+  const auto mp4_path = dir / "lecture.mp4";
+  write_file(mp4_path, "dummy media content");
+
+  auto mp4_chunks = lazyfinder::Extractor::extract_chunks(mp4_path);
+  TEST_ASSERT(!mp4_chunks.empty(), "MP4 extracted via companion SRT");
+  TEST_ASSERT(mp4_chunks[0].find("lecture.mp4") != std::string::npos,
+              "Header contains MP4 filename");
+  TEST_ASSERT(mp4_chunks[0].find("[01:23]") != std::string::npos,
+              "MP4 chunk has companion timestamp");
+
+  std::cout << "  ✓ Subtitle and media companion extraction passed." << std::endl;
+}
+
 void test_edge_cases(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Edge cases and safety..." << std::endl;
@@ -333,6 +388,7 @@ int main()
   test_html_extraction(temp_dir);
   test_rtf_extraction(temp_dir);
   test_office_formats(temp_dir);
+  test_subtitles_and_media(temp_dir);
   test_edge_cases(temp_dir);
 
   // Clean up

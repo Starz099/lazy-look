@@ -234,9 +234,25 @@ void test_contextual_snippets_and_pages()
   TEST_ASSERT(res_pptx[0].snippet.find("Slide 2 • ") != std::string::npos,
               "Snippet contains Slide 2 badge");
 
+  // Media file with timestamps: lecture.mp4
+  const std::string mp4_path = "/media/lecture.mp4";
+  const std::vector<std::string> mp4_chunks = {
+      "lecture.mp4\n[00:30] Course overview and syllabus introduction.",
+      "lecture.mp4\n[02:15] Discussion on Kubernetes orchestration and cluster scalability.",
+      "lecture.mp4\n[05:40] Final wrap up and next steps."};
+  db.insert_file_chunks(mp4_path, 5000, 1000, mp4_chunks);
+
+  // Search for "Kubernetes" in MP4 -> should match chunk 1 with timestamp [02:15] = 135 seconds
+  auto res_media = db.search_hybrid({}, "Kubernetes", 5);
+  TEST_ASSERT(!res_media.empty(), "Found media result for Kubernetes");
+  TEST_ASSERT(res_media[0].path == mp4_path, "Media path matches");
+  TEST_ASSERT(res_media[0].page_number == 135, "Media timestamp is 135 seconds (02:15)");
+  TEST_ASSERT(res_media[0].snippet.find("02:15 • ") != std::string::npos,
+              "Snippet contains 02:15 timestamp badge");
+
   db.close();
   std::filesystem::remove(db_path);
-  std::cout << "  ✓ Contextual snippets and page/slide numbers passed." << std::endl;
+  std::cout << "  ✓ Contextual snippets, page numbers, and media timestamps passed." << std::endl;
 }
 
 int main()

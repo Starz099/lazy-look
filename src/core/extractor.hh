@@ -23,6 +23,8 @@ public:
   static std::vector<std::string> extract_opendocument_file(const std::filesystem::path &path);
   static std::vector<std::string> extract_epub_file(const std::filesystem::path &path);
   static std::vector<std::string> extract_rtf_file(const std::filesystem::path &path);
+  static std::vector<std::string> extract_subtitle_file(const std::filesystem::path &path);
+  static std::vector<std::string> extract_media_file(const std::filesystem::path &path);
 };
 
 } // namespace lazyfinder

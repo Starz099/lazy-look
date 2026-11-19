@@ -72,6 +72,7 @@ signals:
   void watchedDirectoriesChanged();
   void modelLoadedChanged();
   void searchCompleted();
+  void fileOpened();
 
 private:
   void executeSearch(const QString &query_text, uint64_t qid);

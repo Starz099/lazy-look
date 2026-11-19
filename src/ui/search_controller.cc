@@ -162,27 +162,106 @@ void SearchController::openFile(const QString &path, int pageNumber)
     return;
   }
 
-  if (pageNumber > 0 && path.endsWith(".pdf", Qt::CaseInsensitive)) {
+  std::cout << "[LazyFinder] Opening file: " << path.toStdString() << " (page: " << pageNumber
+            << ")" << std::endl;
+
+  const QString lower = path.toLower();
+
+  // 1. PDF Documents -> jump directly to page if page > 1
+  if (pageNumber > 1 && lower.endsWith(".pdf")) {
     const QString papers_bin = QStandardPaths::findExecutable("papers");
     if (!papers_bin.isEmpty() &&
-        QProcess::startDetached(papers_bin, {"-p", QString::number(pageNumber), path})) {
+        QProcess::startDetached(papers_bin, {"-i", QString::number(pageNumber), path})) {
+      emit fileOpened();
       return;
     }
 
     const QString evince_bin = QStandardPaths::findExecutable("evince");
     if (!evince_bin.isEmpty() &&
-        QProcess::startDetached(evince_bin, {"-p", QString::number(pageNumber), path})) {
+        QProcess::startDetached(evince_bin, {"-i", QString::number(pageNumber), path})) {
+      emit fileOpened();
       return;
     }
 
     const QString okular_bin = QStandardPaths::findExecutable("okular");
     if (!okular_bin.isEmpty() &&
         QProcess::startDetached(okular_bin, {"-p", QString::number(pageNumber), path})) {
+      emit fileOpened();
       return;
     }
   }
 
-  QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+  // 2. Presentations (.pptx, .odp, .ppt) -> jump to slide if slide > 1
+  if (pageNumber > 1 &&
+      (lower.endsWith(".pptx") || lower.endsWith(".odp") || lower.endsWith(".ppt"))) {
+    const QString lo_bin = QStandardPaths::findExecutable("libreoffice");
+    if (!lo_bin.isEmpty() &&
+        QProcess::startDetached(lo_bin, {"--show=" + QString::number(pageNumber), path})) {
+      emit fileOpened();
+      return;
+    }
+  }
+
+  // 3. Video / Audio / Subtitle media -> jump to timestamp (seconds)
+  static const QStringList media_exts = {".mp4",
+                                         ".mkv",
+                                         ".webm",
+                                         ".avi",
+                                         ".mov",
+                                         ".flv",
+                                         ".wmv",
+                                         ".mp3",
+                                         ".wav",
+                                         ".ogg",
+                                         ".flac",
+                                         ".m4a",
+                                         ".aac",
+                                         ".opus",
+                                         ".srt",
+                                         ".vtt"};
+  bool is_media = false;
+  for (const auto &mext : media_exts) {
+    if (lower.endsWith(mext)) {
+      is_media = true;
+      break;
+    }
+  }
+
+  if (pageNumber > 0 && is_media) {
+    QString media_target = path;
+    if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
+      QFileInfo fi(path);
+      QString base = fi.path() + "/" + fi.completeBaseName();
+      for (const auto &vext : {".mp4", ".mkv", ".webm", ".avi", ".mov"}) {
+        if (QFile::exists(base + vext)) {
+          media_target = base + vext;
+          break;
+        }
+      }
+    }
+
+    const QString vlc_bin = QStandardPaths::findExecutable("vlc");
+    if (!vlc_bin.isEmpty() &&
+        QProcess::startDetached(vlc_bin,
+                                {"--start-time", QString::number(pageNumber), media_target})) {
+      emit fileOpened();
+      return;
+    }
+
+    const QString mpv_bin = QStandardPaths::findExecutable("mpv");
+    if (!mpv_bin.isEmpty() &&
+        QProcess::startDetached(mpv_bin,
+                                {"--start=" + QString::number(pageNumber), media_target})) {
+      emit fileOpened();
+      return;
+    }
+  }
+
+  // Primary / fallback: open via default desktop environment handler
+  bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+  std::cout << "[LazyFinder] QDesktopServices::openUrl: " << (ok ? "success" : "failed")
+            << std::endl;
+  emit fileOpened();
 }
 
 void SearchController::revealInFolder(const QString &path)

@@ -24,19 +24,20 @@ QString format_display_dir(const std::filesystem::path &p)
 
 QString clean_snippet(std::string_view snippet)
 {
+  const QString qstr = QString::fromUtf8(snippet.data(), static_cast<qsizetype>(snippet.size()));
   QString clean;
-  clean.reserve(static_cast<qsizetype>(snippet.size()));
+  clean.reserve(qstr.size());
   bool last_space = false;
-  for (char ch : snippet) {
+  for (QChar ch : qstr) {
     if (ch == '\n' || ch == '\r' || ch == '\t') {
-      if (!last_space) {
+      if (!last_space && !clean.isEmpty()) {
         clean.append(' ');
         last_space = true;
       }
     }
     else {
-      clean.append(QChar(ch));
-      last_space = (ch == ' ');
+      clean.append(ch);
+      last_space = ch.isSpace();
     }
   }
   return clean.trimmed();

@@ -204,6 +204,13 @@ Window {
   }
 
   // Global Key Shortcuts
+  Connections {
+    target: searchController
+    function onFileOpened() {
+      window.visible = false;
+    }
+  }
+
   Shortcut {
     sequence: "Ctrl+,"
     onActivated: {

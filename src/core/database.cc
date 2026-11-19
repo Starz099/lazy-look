@@ -21,6 +21,46 @@ namespace lazyfinder
 namespace
 {
 
+int parse_timestamp_from_text(std::string_view text, size_t match_pos)
+{
+  size_t search_end = (match_pos != std::string_view::npos && match_pos < text.size())
+                          ? (match_pos + 1)
+                          : text.size();
+
+  size_t last_bracket = text.rfind('[', search_end > 0 ? (search_end - 1) : 0);
+  if (last_bracket == std::string_view::npos) {
+    last_bracket = text.find('[');
+  }
+
+  if (last_bracket != std::string_view::npos) {
+    size_t close_bracket = text.find(']', last_bracket);
+    if (close_bracket != std::string_view::npos && close_bracket - last_bracket <= 12) {
+      std::string_view tstr = text.substr(last_bracket + 1, close_bracket - last_bracket - 1);
+      size_t first_colon = tstr.find(':');
+      if (first_colon != std::string_view::npos) {
+        size_t second_colon = tstr.find(':', first_colon + 1);
+        try {
+          if (second_colon != std::string_view::npos) {
+            int h = std::stoi(std::string(tstr.substr(0, first_colon)));
+            int m = std::stoi(
+                std::string(tstr.substr(first_colon + 1, second_colon - first_colon - 1)));
+            int s = std::stoi(std::string(tstr.substr(second_colon + 1)));
+            return h * 3600 + m * 60 + s;
+          }
+          else {
+            int m = std::stoi(std::string(tstr.substr(0, first_colon)));
+            int s = std::stoi(std::string(tstr.substr(first_colon + 1)));
+            return m * 60 + s;
+          }
+        }
+        catch (...) {
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 std::string clean_snippet_text(std::string_view text)
 {
   std::string result;
@@ -143,7 +183,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
     }
   }
 
-  // Prepend page / slide badge if applicable
+  // Prepend page / slide / timestamp badge if applicable
   std::string badge;
   if (page_number > 0) {
     if (ext == ".pdf") {
@@ -151,6 +191,17 @@ std::string make_contextual_snippet(std::string_view raw_content,
     }
     else if (ext == ".pptx" || ext == ".odp") {
       badge = "Slide " + std::to_string(page_number) + " • ";
+    }
+    else {
+      int secs = page_number;
+      char buf[32];
+      if (secs >= 3600) {
+        snprintf(buf, sizeof(buf), "%02d:%02d:%02d • ", secs / 3600, (secs % 3600) / 60, secs % 60);
+      }
+      else {
+        snprintf(buf, sizeof(buf), "%02d:%02d • ", secs / 60, secs % 60);
+      }
+      badge = buf;
     }
   }
 
@@ -780,6 +831,9 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     int page_num = 0;
     if (ext == ".pdf" || ext == ".pptx" || ext == ".odp") {
       page_num = cand.chunk_index + 1;
+    }
+    else {
+      page_num = parse_timestamp_from_text(cand.best_content, cand.best_content.find(query_text));
     }
     res.page_number = page_num;
 

@@ -160,10 +160,15 @@ Item {
     cursorShape: Qt.PointingHandCursor
     onClicked: {
       ListView.view.currentIndex = root.index;
+      var targetPath = (root.filePath && root.filePath.length > 0) ? root.filePath : searchController.resultsModel.pathAt(root.index);
+      var targetPage = (root.pageNumber !== undefined && root.pageNumber > 0) ? root.pageNumber : searchController.resultsModel.pageNumberAt(root.index);
+      searchController.openFile(targetPath, targetPage);
     }
     onDoubleClicked: {
       ListView.view.currentIndex = root.index;
-      searchController.openFile(root.filePath, root.pageNumber);
+      var targetPath = (root.filePath && root.filePath.length > 0) ? root.filePath : searchController.resultsModel.pathAt(root.index);
+      var targetPage = (root.pageNumber !== undefined && root.pageNumber > 0) ? root.pageNumber : searchController.resultsModel.pageNumberAt(root.index);
+      searchController.openFile(targetPath, targetPage);
     }
   }
 }

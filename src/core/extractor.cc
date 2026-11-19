@@ -83,7 +83,20 @@ const std::unordered_set<std::string> &supported_extensions()
                                                        ".ods",
                                                        ".odp",
                                                        ".epub",
-                                                       ".rtf"};
+                                                       ".rtf",
+                                                       // Subtitles and Media
+                                                       ".srt",
+                                                       ".vtt",
+                                                       ".mp4",
+                                                       ".mkv",
+                                                       ".webm",
+                                                       ".avi",
+                                                       ".mov",
+                                                       ".mp3",
+                                                       ".wav",
+                                                       ".ogg",
+                                                       ".flac",
+                                                       ".m4a"};
   return exts;
 }
 
@@ -465,13 +478,20 @@ std::vector<std::string> Extractor::extract_chunks(const std::filesystem::path &
 {
   std::error_code ec;
   const auto size = std::filesystem::file_size(path, ec);
-  if (ec || size == 0 || size > max_file_size) {
+  if (ec || size == 0) {
     return {};
   }
 
   std::string ext = path.extension().string();
   std::transform(
       ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+
+  static const std::unordered_set<std::string> media_exts = {
+      ".mp4", ".mkv", ".webm", ".avi", ".mov", ".mp3", ".wav", ".ogg", ".flac", ".m4a"};
+  const bool is_media = media_exts.contains(ext);
+  if (!is_media && size > max_file_size) {
+    return {};
+  }
 
   std::vector<std::string> chunks;
   if (ext == ".pdf") {
@@ -497,6 +517,12 @@ std::vector<std::string> Extractor::extract_chunks(const std::filesystem::path &
   }
   else if (ext == ".html" || ext == ".htm") {
     chunks = extract_html_file(path);
+  }
+  else if (ext == ".srt" || ext == ".vtt") {
+    chunks = extract_subtitle_file(path);
+  }
+  else if (is_media) {
+    chunks = extract_media_file(path);
   }
   else if (is_binary_file(path)) {
     return {path.filename().string()};
@@ -713,6 +739,209 @@ std::vector<std::string> Extractor::extract_rtf_file(const std::filesystem::path
 
   const std::string cleaned = extract_rtf_text(content);
   return chunk_text(cleaned, max_chunks_per_file);
+}
+
+namespace
+{
+
+struct SubtitleCue
+{
+  int seconds = 0;
+  std::string badge;
+  std::string text;
+};
+
+std::vector<SubtitleCue> parse_subtitle_text(std::string_view raw)
+{
+  std::vector<SubtitleCue> cues;
+  const std::string raw_str(raw);
+  std::istringstream stream(raw_str);
+  std::string line;
+
+  while (std::getline(stream, line)) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t')) {
+      line.pop_back();
+    }
+    const size_t arrow_pos = line.find("-->");
+    if (arrow_pos == std::string::npos) {
+      continue;
+    }
+
+    std::string start_str = line.substr(0, arrow_pos);
+    while (!start_str.empty() && (start_str.front() == ' ' || start_str.front() == '\t')) {
+      start_str.erase(start_str.begin());
+    }
+    while (!start_str.empty() && (start_str.back() == ' ' || start_str.back() == '\t')) {
+      start_str.pop_back();
+    }
+    for (char &c : start_str) {
+      if (c == ',') {
+        c = '.';
+      }
+    }
+
+    std::vector<std::string> parts;
+    std::istringstream tss(start_str);
+    std::string part;
+    while (std::getline(tss, part, ':')) {
+      parts.push_back(part);
+    }
+
+    int secs = 0;
+    try {
+      if (parts.size() == 3) {
+        int h = std::stoi(parts[0]);
+        int m = std::stoi(parts[1]);
+        double s = std::stod(parts[2]);
+        secs = h * 3600 + m * 60 + static_cast<int>(s);
+      }
+      else if (parts.size() == 2) {
+        int m = std::stoi(parts[0]);
+        double s = std::stod(parts[1]);
+        secs = m * 60 + static_cast<int>(s);
+      }
+    }
+    catch (...) {
+      continue;
+    }
+
+    char badge_buf[32];
+    if (secs >= 3600) {
+      snprintf(badge_buf,
+               sizeof(badge_buf),
+               "%02d:%02d:%02d",
+               secs / 3600,
+               (secs % 3600) / 60,
+               secs % 60);
+    }
+    else {
+      snprintf(badge_buf, sizeof(badge_buf), "%02d:%02d", secs / 60, secs % 60);
+    }
+
+    std::string cue_text;
+    while (std::getline(stream, line)) {
+      while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t')) {
+        line.pop_back();
+      }
+      if (line.empty() || line.find("-->") != std::string::npos) {
+        break;
+      }
+      bool is_all_digits = true;
+      for (char ch : line) {
+        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+          is_all_digits = false;
+          break;
+        }
+      }
+      if (is_all_digits) {
+        continue;
+      }
+
+      if (!cue_text.empty()) {
+        cue_text += " ";
+      }
+      cue_text += line;
+    }
+
+    if (!cue_text.empty()) {
+      cues.push_back(SubtitleCue{secs, badge_buf, clean_text(cue_text)});
+    }
+  }
+
+  return cues;
+}
+
+std::vector<std::string> cues_to_chunks(const std::vector<SubtitleCue> &cues)
+{
+  std::vector<std::string> chunks;
+  std::string current_chunk;
+
+  for (const auto &cue : cues) {
+    if (cue.text.empty()) {
+      continue;
+    }
+
+    if (current_chunk.empty()) {
+      current_chunk = "[" + cue.badge + "] " + cue.text;
+    }
+    else if (current_chunk.size() + cue.text.size() + 20 < max_chunk_chars) {
+      current_chunk += " [" + cue.badge + "] " + cue.text;
+    }
+    else {
+      chunks.push_back(std::move(current_chunk));
+      current_chunk = "[" + cue.badge + "] " + cue.text;
+      if (chunks.size() >= max_chunks_per_file) {
+        break;
+      }
+    }
+  }
+
+  if (!current_chunk.empty() && chunks.size() < max_chunks_per_file) {
+    chunks.push_back(std::move(current_chunk));
+  }
+  return chunks;
+}
+
+} // namespace
+
+std::vector<std::string> Extractor::extract_subtitle_file(const std::filesystem::path &path)
+{
+  std::ifstream file(path);
+  if (!file) {
+    return {};
+  }
+  std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  if (content.empty()) {
+    return {};
+  }
+
+  const auto cues = parse_subtitle_text(content);
+  return cues_to_chunks(cues);
+}
+
+std::vector<std::string> Extractor::extract_media_file(const std::filesystem::path &path)
+{
+  // 1. Check companion subtitle files in same folder (.srt, .vtt, .en.srt, .en.vtt)
+  const std::filesystem::path dir = path.parent_path();
+  const std::string stem = path.stem().string();
+
+  const std::vector<std::string> sub_candidates = {
+      stem + ".srt", stem + ".vtt", stem + ".en.srt", stem + ".en.vtt"};
+  for (const auto &sub_name : sub_candidates) {
+    const std::filesystem::path sub_path = dir / sub_name;
+    if (std::filesystem::exists(sub_path)) {
+      auto chunks = extract_subtitle_file(sub_path);
+      if (!chunks.empty()) {
+        return chunks;
+      }
+    }
+  }
+
+  // 2. Check embedded subtitles via ffmpeg stream extraction
+  std::string ffmpeg_cmd =
+      "ffmpeg -v error -i " + escape_shell_arg(path.string()) + " -map 0:s:0 -f srt - 2>/dev/null";
+  FILE *pipe = popen(ffmpeg_cmd.c_str(), "r");
+  if (pipe) {
+    std::string srt_out;
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+      srt_out += buffer;
+      if (srt_out.size() > 5 * 1024 * 1024) {
+        break;
+      }
+    }
+    pclose(pipe);
+
+    if (!srt_out.empty()) {
+      auto cues = parse_subtitle_text(srt_out);
+      if (!cues.empty()) {
+        return cues_to_chunks(cues);
+      }
+    }
+  }
+
+  // 3. Fallback: index the filename
+  return {path.filename().string()};
 }
 
 } // namespace lazyfinder
