@@ -21,6 +21,15 @@ namespace lazyfinder
 namespace
 {
 
+constexpr double kRrfSmoothingConstant = 60.0;
+constexpr double kFilenameBoostWeight = 1.5;
+constexpr int kCategorySearchMultiplier = 10;
+constexpr int kDefaultSearchMultiplier = 3;
+constexpr int kRecentFallbackMultiplier = 5;
+constexpr size_t kMaxTimestampLength = 12;
+constexpr size_t kMaxHeaderLineLength = 120;
+constexpr size_t kMinFilenameMatchLength = 2;
+
 int parse_timestamp_from_text(std::string_view text, size_t match_pos)
 {
   size_t search_end = (match_pos != std::string_view::npos && match_pos < text.size())
@@ -34,7 +43,8 @@ int parse_timestamp_from_text(std::string_view text, size_t match_pos)
 
   if (last_bracket != std::string_view::npos) {
     size_t close_bracket = text.find(']', last_bracket);
-    if (close_bracket != std::string_view::npos && close_bracket - last_bracket <= 12) {
+    if (close_bracket != std::string_view::npos &&
+        close_bracket - last_bracket <= kMaxTimestampLength) {
       std::string_view tstr = text.substr(last_bracket + 1, close_bracket - last_bracket - 1);
       size_t first_colon = tstr.find(':');
       if (first_colon != std::string_view::npos) {
@@ -104,7 +114,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
   // Strip prepended filename header if present
   std::string_view content = raw_content;
   const size_t newline_pos = content.find('\n');
-  if (newline_pos != std::string_view::npos && newline_pos < 120) {
+  if (newline_pos != std::string_view::npos && newline_pos < kMaxHeaderLineLength) {
     content.remove_prefix(newline_pos + 1);
   }
 
@@ -207,7 +217,8 @@ std::string make_contextual_snippet(std::string_view raw_content,
       int secs = page_number;
       char buf[32];
       if (secs >= 3600) {
-        snprintf(buf, sizeof(buf), "%02d:%02d:%02d • ", secs / 3600, (secs % 3600) / 60, secs % 60);
+        snprintf(
+            buf, sizeof(buf), "%02d:%02d:%02d • ", secs / 3600, (secs % 3600) / 60, secs % 60);
       }
       else {
         snprintf(buf, sizeof(buf), "%02d:%02d • ", secs / 60, secs % 60);
@@ -868,10 +879,11 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   };
   std::unordered_map<int64_t, Candidate> candidates;
 
-  const int top_k = parsed.category != QueryCategory::All ? static_cast<int>(limit * 10)
-                                                          : static_cast<int>(limit * 3);
+  const int top_k = parsed.category != QueryCategory::All
+                        ? static_cast<int>(limit * kCategorySearchMultiplier)
+                        : static_cast<int>(limit * kDefaultSearchMultiplier);
 
-  // 1. Dense Vector kNN Search
+  // Dense vector kNN search
   if (!query_embedding.empty()) {
     const char *vec_sql = R"(
       SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
@@ -917,7 +929,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
           }
         }
         if (seen_vec_files.insert(fid).second) {
-          cand.rrf_score += 1.0 / (60.0 + rank);
+          cand.rrf_score += 1.0 / (kRrfSmoothingConstant + rank);
           ++rank;
         }
       }
@@ -925,7 +937,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     }
   }
 
-  // 2. Sparse Lexical Search (FTS5 BM25)
+  // Sparse lexical search via FTS BM25
   const std::string clean_fts_text = parsed.text.empty() ? std::string(query_text) : parsed.text;
   const std::string fts_query = sanitize_fts_query(clean_fts_text);
   if (!fts_query.empty()) {
@@ -970,7 +982,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
           }
         }
         if (seen_fts_files.insert(fid).second) {
-          cand.rrf_score += 1.0 / (60.0 + rank);
+          cand.rrf_score += 1.0 / (kRrfSmoothingConstant + rank);
           ++rank;
         }
       }
@@ -978,7 +990,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     }
   }
 
-  // 3. Category browsing fallback (e.g., query was just "code:" or "image:")
+  // Category browsing fallback when query is only a filter
   if (candidates.empty() && parsed.category != QueryCategory::All && parsed.text.empty()) {
     const char *recent_sql = R"(
       SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
@@ -990,7 +1002,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     )";
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(impl_->db, recent_sql, -1, &stmt, nullptr) == SQLITE_OK) {
-      sqlite3_bind_int(stmt, 1, static_cast<int>(limit * 5));
+      sqlite3_bind_int(stmt, 1, static_cast<int>(limit * kRecentFallbackMultiplier));
       int rank = 1;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
@@ -1012,7 +1024,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         if (thumb_str) {
           cand.thumbnail_path = thumb_str;
         }
-        cand.rrf_score = 1.0 / (60.0 + rank);
+        cand.rrf_score = 1.0 / (kRrfSmoothingConstant + rank);
         ++rank;
         if (candidates.size() >= limit) {
           break;
@@ -1022,7 +1034,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     }
   }
 
-  // 3. Filename matching (boost files whose filename matches query keywords)
+  // Boost candidates whose filename matches query keywords
   if (!query_text.empty()) {
     std::string clean_q;
     for (const char ch : query_text) {
@@ -1030,7 +1042,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         clean_q += ch;
       }
     }
-    if (clean_q.size() >= 2) {
+    if (clean_q.size() >= kMinFilenameMatchLength) {
       const char *fn_sql = R"(
         SELECT id, path
         FROM files
@@ -1048,11 +1060,10 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
           int64_t fid = sqlite3_column_int64(stmt, 0);
           const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
           auto &cand = candidates[fid];
-          cand.path = path_str ? path_str : "";
           if (cand.snippet.empty()) {
             cand.snippet = cand.path;
           }
-          cand.rrf_score += 1.5 / (60.0 + rank);
+          cand.rrf_score += kFilenameBoostWeight / (kRrfSmoothingConstant + rank);
           ++rank;
         }
         sqlite3_finalize(stmt);

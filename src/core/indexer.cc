@@ -28,6 +28,8 @@ const std::vector<std::string> &default_ignores()
   return ignores;
 }
 
+constexpr size_t kProgressLogInterval = 100;
+
 } // namespace
 
 Indexer::Indexer(Database &db, Embedder &embedder)
@@ -114,7 +116,7 @@ bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_
     chunk_records.push_back(ChunkRecord{chunk.text, chunk.page_or_timestamp, chunk.thumbnail_path});
   }
 
-  // Stage 1: Insert file record and text chunks immediately for instant lexical (FTS5) search
+  // Insert file record and text chunks immediately for instant lexical search
   auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunk_records);
   if (!chunk_ids.has_value() || chunk_ids->size() != processed.chunks.size()) {
     return false;
@@ -124,7 +126,7 @@ bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_
     chunk_cb(path, 0, processed.chunks.size());
   }
 
-  // Stage 2: Generate vector embeddings for each chunk
+  // Generate vector embeddings for each chunk
   for (size_t i = 0; i < processed.chunks.size(); ++i) {
     if (cancel_token_ && cancel_token_->load()) {
       return true; // Preserved in lexical index; vector search can resume next sync
@@ -198,7 +200,7 @@ IndexStats Indexer::index_all(ProgressCallback progress_cb, ChunkCallback chunk_
       if (stat(entry.path().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
         if (!db_.needs_reindex(entry.path().string(), st.st_size, st.st_mtime)) {
           stats.skipped++;
-          if (progress_cb && (stats.scanned % 100 == 0 || stats.skipped == 1)) {
+          if (progress_cb && (stats.scanned % kProgressLogInterval == 0 || stats.skipped == 1)) {
             progress_cb(entry.path(), stats.scanned, stats.indexed, stats.skipped);
           }
           continue;

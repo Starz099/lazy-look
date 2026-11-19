@@ -38,6 +38,8 @@ void ensure_backend_initialized()
   });
 }
 
+constexpr int kDefaultGpuLayers = 99;
+
 void l2_normalize(std::vector<float> &vec)
 {
   double sum = 0.0;
@@ -117,7 +119,7 @@ bool Embedder::load_model(std::string_view model_path)
   std::string path_str =
       model_path.empty() ? Config::resolve_model_path() : std::string(model_path);
   llama_model_params mparams = llama_model_default_params();
-  mparams.n_gpu_layers = 99;
+  mparams.n_gpu_layers = kDefaultGpuLayers;
   impl_->model = llama_model_load_from_file(path_str.c_str(), mparams);
   if (!impl_->model) {
     return false;

@@ -58,7 +58,8 @@ void test_model_loading_and_inference()
 
   std::string model_path = lazyfinder::Config::resolve_model_path();
   if (model_path.empty() || !std::filesystem::exists(model_path)) {
-    std::cout << "  (Skipping live model test: model weights not found at resolved path)" << std::endl;
+    std::cout << "  (Skipping live model test: model weights not found at resolved path)"
+              << std::endl;
     return;
   }
 
@@ -72,19 +73,24 @@ void test_model_loading_and_inference()
   auto vec = embedder.embed_query("quarterly financial report and revenue statistics");
   TEST_ASSERT(vec.size() == 768, "Vector dimension matches embedding dim");
 
-  // Verify L2 normalization: norm should be ~1.0
+  // Verify unit normalization
   float norm = vector_norm(vec);
   TEST_ASSERT(std::abs(norm - 1.0f) < 1e-3f, "Vector must be L2 normalized to unit length");
 
-  std::cout << "  ✓ Model loading and L2 normalization passed (dim=" << vec.size() << ", norm=" << norm << ")." << std::endl;
+  std::cout << "  ✓ Model loading and L2 normalization passed (dim=" << vec.size()
+            << ", norm=" << norm << ")." << std::endl;
 
   // Test Semantic Similarity:
   // dot(AI, Tech) must be significantly higher than dot(AI, Food)
-  auto vec_ai = embedder.embed_query("machine learning neural network models and artificial intelligence");
-  auto vec_tech = embedder.embed_query("software development deep learning algorithms and computer programming");
-  auto vec_food = embedder.embed_query("baking fresh sourdough bread with flour, water and yeast in oven");
+  auto vec_ai =
+      embedder.embed_query("machine learning neural network models and artificial intelligence");
+  auto vec_tech = embedder.embed_query(
+      "software development deep learning algorithms and computer programming");
+  auto vec_food =
+      embedder.embed_query("baking fresh sourdough bread with flour, water and yeast in oven");
 
-  TEST_ASSERT(vec_ai.size() == 768 && vec_tech.size() == 768 && vec_food.size() == 768, "All vectors generated");
+  TEST_ASSERT(vec_ai.size() == 768 && vec_tech.size() == 768 && vec_food.size() == 768,
+              "All vectors generated");
 
   float sim_related = dot_product(vec_ai, vec_tech);
   float sim_unrelated = dot_product(vec_ai, vec_food);
@@ -92,7 +98,8 @@ void test_model_loading_and_inference()
   std::cout << "  Cosine similarity (AI <-> Tech): " << sim_related << std::endl;
   std::cout << "  Cosine similarity (AI <-> Food): " << sim_unrelated << std::endl;
 
-  TEST_ASSERT(sim_related > sim_unrelated, "Related semantic vectors must have higher cosine similarity than unrelated");
+  TEST_ASSERT(sim_related > sim_unrelated,
+              "Related semantic vectors must have higher cosine similarity than unrelated");
   TEST_ASSERT(sim_related - sim_unrelated > 0.1f, "Semantic margin must be substantial (> 0.10)");
 
   std::cout << "  ✓ Semantic vector mathematics verified." << std::endl;

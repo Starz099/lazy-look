@@ -12,7 +12,7 @@ Item {
   property real strokeWidth: 1.75
   property bool filled: false
 
-  // Lucide 24x24 standardized vector path definitions
+  // Lucide standardized vector path definitions
   readonly property var pathMap: ({
     "search": "M 21 21 L 16.65 16.65 M 19 11 A 8 8 0 1 1 3 11 A 8 8 0 0 1 19 11 Z",
     "settings": "M 4 21 V 14 M 4 10 V 3 M 12 21 V 12 M 12 8 V 3 M 20 21 V 16 M 20 12 V 3 M 1 14 H 7 M 9 8 H 15 M 17 16 H 23",

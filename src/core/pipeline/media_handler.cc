@@ -16,6 +16,16 @@ namespace
 
 constexpr size_t max_chunk_chars = 2500;
 constexpr size_t max_chunks_per_file = 25;
+constexpr size_t kMaxSubtitleBufferSizeBytes = 5 * 1024 * 1024;
+constexpr size_t kMaxMetadataBufferSizeBytes = 1024 * 1024;
+constexpr int kAudioWindowSeconds = 30;
+constexpr int kAudioHopSeconds = 15;
+constexpr size_t kMaxAudioSlices = 60;
+constexpr int kThumbnailWidth = 160;
+constexpr int kThumbnailHeight = 90;
+constexpr int kThumbnailJpegQuality = 3;
+constexpr size_t kMinChunksForVideoSampling = 3;
+constexpr size_t kMaxKeyframeSamples = 12;
 
 const std::unordered_set<std::string> &media_extensions()
 {
@@ -246,13 +256,15 @@ std::string MediaHandler::generate_keyframe_thumbnail(const std::filesystem::pat
     return thumb_path.string();
   }
 
-  // Generate 160x90 16:9 thumbnail via ffmpeg
-  const std::string cmd =
-      "ffmpeg -y -v error -ss " + std::to_string(timestamp_sec) + " -i " +
-      escape_shell_arg(video_path.string()) + " -vframes 1 -q:v 3 " +
-      "-vf \"scale=160:90:force_original_aspect_ratio=decrease,pad=160:90:(ow-iw)/2:(oh-ih)/2:"
-      "black\" " +
-      escape_shell_arg(thumb_path.string()) + " 2>/dev/null";
+  // Generate keyframe thumbnail via ffmpeg
+  const std::string filter =
+      "-vf \"scale=" + std::to_string(kThumbnailWidth) + ":" + std::to_string(kThumbnailHeight) +
+      ":force_original_aspect_ratio=decrease,pad=" + std::to_string(kThumbnailWidth) + ":" +
+      std::to_string(kThumbnailHeight) + ":(ow-iw)/2:(oh-ih)/2:black\"";
+  const std::string cmd = "ffmpeg -y -v error -ss " + std::to_string(timestamp_sec) + " -i " +
+                          escape_shell_arg(video_path.string()) + " -vframes 1 -q:v " +
+                          std::to_string(kThumbnailJpegQuality) + " " + filter + " " +
+                          escape_shell_arg(thumb_path.string()) + " 2>/dev/null";
 
   int ret = std::system(cmd.c_str());
   if (ret == 0 && std::filesystem::exists(thumb_path, ec)) {
@@ -360,7 +372,7 @@ std::vector<VideoChapter> MediaHandler::probe_chapters(const std::filesystem::pa
   char buffer[4096];
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     output += buffer;
-    if (output.size() >= 1024 * 1024) {
+    if (output.size() >= kMaxMetadataBufferSizeBytes) {
       break;
     }
   }
@@ -456,7 +468,7 @@ std::vector<MediaCue> MediaHandler::parse_subtitles(std::string_view raw)
     }
 
     if (current_sec >= 0) {
-      // Check if line is just an index counter (e.g. "1", "2")
+      // Check if line is subtitle index counter
       bool is_all_digits = true;
       for (char ch : line) {
         if (!std::isdigit(static_cast<unsigned char>(ch))) {
@@ -505,7 +517,7 @@ MediaMetadata MediaHandler::probe_metadata(const std::filesystem::path &path)
       ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
   meta.format = ext.size() > 1 ? ext.substr(1) : "";
 
-  // 1. Probe using ffmpeg stderr output
+  // Probe container and stream details using ffmpeg stderr output
   const std::string cmd = "ffmpeg -i " + escape_shell_arg(path.string()) + " 2>&1";
   FILE *pipe = popen(cmd.c_str(), "r");
   if (pipe) {
@@ -513,7 +525,7 @@ MediaMetadata MediaHandler::probe_metadata(const std::filesystem::path &path)
     while (fgets(buf, sizeof(buf), pipe) != nullptr) {
       std::string line(buf);
 
-      // Duration: 00:01:23.45, start: ...
+      // Duration format probe
       const size_t dur_pos = line.find("Duration: ");
       if (dur_pos != std::string::npos) {
         std::string dur_str = line.substr(dur_pos + 10, 8);
@@ -524,7 +536,7 @@ MediaMetadata MediaHandler::probe_metadata(const std::filesystem::path &path)
         }
       }
 
-      // Video stream: Video: h264 ..., 1920x1080 ...
+      // Video stream probe
       const size_t vid_pos = line.find("Video: ");
       if (vid_pos != std::string::npos) {
         size_t comma = line.find(',', vid_pos);
@@ -532,7 +544,7 @@ MediaMetadata MediaHandler::probe_metadata(const std::filesystem::path &path)
           meta.codec = line.substr(vid_pos + 7, comma - (vid_pos + 7));
         }
 
-        // Look for resolution pattern like 1920x1080
+        // Look for resolution pattern
         for (size_t i = vid_pos; i + 7 < line.size(); ++i) {
           if (line[i] == 'x' && std::isdigit(static_cast<unsigned char>(line[i - 1])) &&
               std::isdigit(static_cast<unsigned char>(line[i + 1]))) {
@@ -550,7 +562,7 @@ MediaMetadata MediaHandler::probe_metadata(const std::filesystem::path &path)
         }
       }
 
-      // Audio stream: Audio: aac ..., 48000 Hz
+      // Audio stream probe
       const size_t aud_pos = line.find("Audio: ");
       if (aud_pos != std::string::npos && meta.codec.empty()) {
         size_t comma = line.find(',', aud_pos);
@@ -595,10 +607,10 @@ std::vector<AudioSlice> MediaHandler::slice_audio_windows(const std::filesystem:
     return slices;
   }
 
-  // 30-second windows with 15-second hop (matches standard speech/audio chunking)
-  const int window = 30;
-  const int hop = 15;
-  const size_t max_slices = 60; // Up to 30 minutes of sliced audio
+  // Audio windows with overlapping hop for speech and music analysis
+  const int window = kAudioWindowSeconds;
+  const int hop = kAudioHopSeconds;
+  const size_t max_slices = kMaxAudioSlices;
 
   for (int s = 0; s < duration_sec && slices.size() < max_slices; s += hop) {
     int end_s = std::min(s + window, duration_sec);
@@ -640,7 +652,7 @@ std::vector<MediaCue> MediaHandler::transcribe_speech(const std::filesystem::pat
   char buffer[4096];
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     srt_out += buffer;
-    if (srt_out.size() > 5 * 1024 * 1024) {
+    if (srt_out.size() > kMaxSubtitleBufferSizeBytes) {
       break;
     }
   }
@@ -666,12 +678,12 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
   const bool is_video = video_extensions().contains(ext);
   const bool is_audio = audio_extensions().contains(ext);
 
-  // 1. Direct subtitle files (.srt, .vtt)
+  // Direct subtitle files (.srt, .vtt)
   if (ext == ".srt" || ext == ".vtt") {
     result.chunks = extract_subtitle_file(path);
   }
   else {
-    // 2. Check companion subtitle files in same folder (.srt, .vtt, .en.srt, .en.vtt)
+    // Check companion subtitle files in same folder (.srt, .vtt, .en.srt, .en.vtt)
     const std::filesystem::path dir = path.parent_path();
     const std::string stem = path.stem().string();
 
@@ -693,7 +705,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
       }
     }
 
-    // 3. Check embedded subtitle streams via ffmpeg
+    // Check embedded subtitle streams via ffmpeg
     if (result.chunks.empty()) {
       std::string ffmpeg_cmd = "ffmpeg -v error -i " + escape_shell_arg(path.string()) +
                                " -map 0:s:0 -f srt - 2>/dev/null";
@@ -703,7 +715,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
         char buffer[4096];
         while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
           srt_out += buffer;
-          if (srt_out.size() > 5 * 1024 * 1024) {
+          if (srt_out.size() > kMaxSubtitleBufferSizeBytes) {
             break;
           }
         }
@@ -718,7 +730,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
       }
     }
 
-    // 4. Ingest native container chapters
+    // Ingest native container chapters
     auto chapters = probe_chapters(path);
     for (const auto &chap : chapters) {
       if (chap.title.empty()) {
@@ -734,7 +746,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
           ProcessedChunk{std::move(text), chap.start_seconds, std::move(thumb), {}});
     }
 
-    // 5. Speech transcription via whisper (if installed on system and no subtitle chunks found)
+    // Speech transcription fallback via whisper
     if (result.chunks.empty()) {
       auto speech_cues = transcribe_speech(path);
       if (!speech_cues.empty()) {
@@ -742,8 +754,8 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
       }
     }
 
-    // 6. Visual keyframe sampling (for videos without subtitles or with few chunks)
-    if (is_video && result.chunks.size() < 3) {
+    // Visual keyframe sampling for videos without subtitles or with few chunks
+    if (is_video && result.chunks.size() < kMinChunksForVideoSampling) {
       MediaMetadata meta = probe_metadata(path);
       if (meta.duration_seconds > 0) {
         // Calculate sampling intervals based on video duration
@@ -767,12 +779,16 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
           }
         }
         else if (meta.duration_seconds <= 1800) {
-          for (int s = 30; s < meta.duration_seconds && sample_timestamps.size() < 12; s += 90) {
+          for (int s = 30;
+               s < meta.duration_seconds && sample_timestamps.size() < kMaxKeyframeSamples;
+               s += 90) {
             sample_timestamps.push_back(s);
           }
         }
         else {
-          for (int s = 60; s < meta.duration_seconds && sample_timestamps.size() < 12; s += 180) {
+          for (int s = 60;
+               s < meta.duration_seconds && sample_timestamps.size() < kMaxKeyframeSamples;
+               s += 180) {
             sample_timestamps.push_back(s);
           }
         }
@@ -794,7 +810,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
       }
     }
 
-    // 7. Timecoded audio windowing (for audio recordings, podcasts, and music without subtitles)
+    // Timecoded audio windowing for audio recordings, podcasts, and music without subtitles
     if (is_audio && result.chunks.empty()) {
       MediaMetadata meta = probe_metadata(path);
       if (meta.duration_seconds > 0) {
@@ -816,7 +832,7 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
     }
   }
 
-  // 6. Metadata fallback if no chunks were extracted
+  // Metadata fallback if no chunks were extracted
   if (result.chunks.empty()) {
     MediaMetadata meta = probe_metadata(path);
     std::string text = path.filename().string();

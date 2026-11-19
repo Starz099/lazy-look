@@ -51,11 +51,14 @@ void test_indexer_ignore_patterns()
   TEST_ASSERT(indexer.is_ignored("/home/user/.git/config"), "Git directory must be ignored");
   TEST_ASSERT(indexer.is_ignored("/home/user/.cache/data"), "Cache directory must be ignored");
   TEST_ASSERT(indexer.is_ignored("/home/user/project/.env"), "Hidden dotfile must be ignored");
-  TEST_ASSERT(indexer.is_ignored("/home/user/node_modules/package.json"), "node_modules must be ignored");
-  TEST_ASSERT(indexer.is_ignored("/home/user/project/build/output.o"), "build directory must be ignored");
+  TEST_ASSERT(indexer.is_ignored("/home/user/node_modules/package.json"),
+              "node_modules must be ignored");
+  TEST_ASSERT(indexer.is_ignored("/home/user/project/build/output.o"),
+              "build directory must be ignored");
 
   // Normal files must not be ignored
-  TEST_ASSERT(!indexer.is_ignored("/home/user/Documents/report.pdf"), "Normal PDF must not be ignored");
+  TEST_ASSERT(!indexer.is_ignored("/home/user/Documents/report.pdf"),
+              "Normal PDF must not be ignored");
   TEST_ASSERT(!indexer.is_ignored("/home/user/src/main.cc"), "Source code must not be ignored");
   TEST_ASSERT(!indexer.is_ignored("/home/user/notes.md"), "Markdown file must not be ignored");
 
@@ -79,28 +82,30 @@ void test_indexer_crud_lifecycle()
   lazyfinder::Embedder embedder;
   lazyfinder::Indexer indexer(db, embedder);
 
-  // 1. Create a sample markdown file
+  // Create sample markdown file
   auto doc_path = temp_dir / "architecture.md";
-  write_test_file(doc_path, "# System Architecture\nThis document describes high performance indexing and vector search.");
+  write_test_file(doc_path,
+                  "# System Architecture\nThis document describes high performance indexing and "
+                  "vector search.");
 
-  // 2. Index the file
+  // Ingest file through indexer
   bool indexed = indexer.index_file(doc_path);
   TEST_ASSERT(indexed, "index_file must succeed on valid document");
   TEST_ASSERT(db.total_files() == 1, "Database total files must be 1");
   TEST_ASSERT(db.total_chunks() >= 1, "Database chunks must be >= 1");
 
-  // 3. Search via FTS keyword
+  // Verify lexical search matches ingested content
   auto results = db.search_hybrid({}, "architecture indexing", 10);
   TEST_ASSERT(!results.empty(), "Search must find newly indexed document");
   TEST_ASSERT(results[0].path == doc_path.string(), "Result path matches indexed file");
 
-  // 4. Remove the file
+  // Remove file from filesystem and indexer
   bool removed = indexer.remove_file(doc_path);
   TEST_ASSERT(removed, "remove_file must succeed");
   TEST_ASSERT(db.total_files() == 0, "Database total files must be 0 after removal");
   TEST_ASSERT(db.total_chunks() == 0, "Database chunks must be 0 after removal");
 
-  // 5. Search again - must return 0 results
+  // Verify removal cleans database index
   auto empty_results = db.search_hybrid({}, "architecture indexing", 10);
   TEST_ASSERT(empty_results.empty(), "Search must return no results after removal");
 
@@ -123,12 +128,13 @@ void test_watcher_lifecycle()
   std::mutex mtx;
   std::vector<std::string> detected_changes;
 
-  bool started = watcher.start({watch_dir.string()}, [&](const std::vector<std::string> &changed_paths) {
-    std::lock_guard<std::mutex> lock(mtx);
-    for (const auto &p : changed_paths) {
-      detected_changes.push_back(p);
-    }
-  });
+  bool started =
+      watcher.start({watch_dir.string()}, [&](const std::vector<std::string> &changed_paths) {
+        std::lock_guard<std::mutex> lock(mtx);
+        for (const auto &p : changed_paths) {
+          detected_changes.push_back(p);
+        }
+      });
 
   TEST_ASSERT(started, "Watcher start must succeed on valid directory");
   TEST_ASSERT(watcher.is_running(), "Watcher must report running state");
@@ -137,7 +143,7 @@ void test_watcher_lifecycle()
   auto test_file = watch_dir / "live_change.txt";
   write_test_file(test_file, "First content");
 
-  // Allow inotify event loop brief time to process (Watcher has a 3s debounce)
+  // Allow inotify event loop brief time to process debounce
   for (int i = 0; i < 75; ++i) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     std::lock_guard<std::mutex> lock(mtx);

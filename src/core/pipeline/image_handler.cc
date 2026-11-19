@@ -19,6 +19,12 @@ namespace lazyfinder
 namespace
 {
 
+constexpr size_t kJpegExifScanLimitBytes = 65536;
+constexpr size_t kMaxOcrOutputChars = 2000;
+constexpr size_t kMinOcrTextLength = 5;
+constexpr size_t kMinExifAsciiLength = 4;
+constexpr int kDefaultColorChannels = 4;
+
 const std::unordered_set<std::string> &image_extensions()
 {
   static const std::unordered_set<std::string> exts = {
@@ -60,7 +66,7 @@ bool parse_webp_dimensions(const std::filesystem::path &path, int &width, int &h
     return false;
   }
 
-  // VP8 lossy
+  // VP lossy
   if (buf[12] == 'V' && buf[13] == 'P' && buf[14] == '8' && buf[15] == ' ') {
     if (buf[23] == 0x9d && buf[24] == 0x01 && buf[25] == 0x2a) {
       width = (buf[26] | (buf[27] << 8)) & 0x3fff;
@@ -68,7 +74,7 @@ bool parse_webp_dimensions(const std::filesystem::path &path, int &width, int &h
       return true;
     }
   }
-  // VP8L lossless
+  // VP lossless
   else if (buf[12] == 'V' && buf[13] == 'P' && buf[14] == '8' && buf[15] == 'L') {
     if (buf[20] == 0x2f) {
       uint32_t b0 = buf[21];
@@ -80,7 +86,7 @@ bool parse_webp_dimensions(const std::filesystem::path &path, int &width, int &h
       return true;
     }
   }
-  // VP8X extended
+  // VP extended
   else if (buf[12] == 'V' && buf[13] == 'P' && buf[14] == '8' && buf[15] == 'X') {
     width = 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16));
     height = 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16));
@@ -217,21 +223,21 @@ void parse_jpeg_exif(const std::filesystem::path &path, ImageMetadata &meta)
     return;
   }
 
-  // Read first 64 KB of JPEG which holds APP1 (Exif) marker
-  std::vector<unsigned char> buf(65536);
+  // Read header segment which holds Exif marker
+  std::vector<unsigned char> buf(kJpegExifScanLimitBytes);
   file.read(reinterpret_cast<char *>(buf.data()), buf.size());
   const size_t len = file.gcount();
   if (len < 16) {
     return;
   }
 
-  // Look for APP1 marker 0xFF 0xE1
+  // Look for Exif APP marker
   for (size_t i = 0; i + 14 < len; ++i) {
     if (buf[i] == 0xFF && buf[i + 1] == 0xE1) {
-      // Check Exif header "Exif\0\0"
+      // Check Exif header bytes
       if (buf[i + 4] == 'E' && buf[i + 5] == 'x' && buf[i + 6] == 'i' && buf[i + 7] == 'f' &&
           buf[i + 8] == 0 && buf[i + 9] == 0) {
-        // Search printable strings within the APP1 segment
+        // Search printable strings within segment
         const size_t app1_len = (buf[i + 2] << 8) | buf[i + 3];
         const size_t end = std::min(len, i + 2 + app1_len);
 
@@ -242,7 +248,7 @@ void parse_jpeg_exif(const std::filesystem::path &path, ImageMetadata &meta)
             ascii_acc.push_back(c);
           }
           else {
-            if (ascii_acc.size() >= 4) {
+            if (ascii_acc.size() >= kMinExifAsciiLength) {
               if (ascii_acc.find("Canon") != std::string::npos ||
                   ascii_acc.find("Nikon") != std::string::npos ||
                   ascii_acc.find("Sony") != std::string::npos ||
@@ -371,7 +377,7 @@ ImageMetadata ImageHandler::extract_metadata(const std::filesystem::path &path)
         char buf[1024];
         while (fgets(buf, sizeof(buf), pipe) != nullptr) {
           ocr_res += buf;
-          if (ocr_res.size() > 2000) {
+          if (ocr_res.size() > kMaxOcrOutputChars) {
             break;
           }
         }
@@ -391,7 +397,7 @@ ImageMetadata ImageHandler::extract_metadata(const std::filesystem::path &path)
         while (!cleaned.empty() && cleaned.back() == ' ') {
           cleaned.pop_back();
         }
-        if (cleaned.size() >= 5) {
+        if (cleaned.size() >= kMinOcrTextLength) {
           meta.text_content = std::move(cleaned);
         }
       }
@@ -409,7 +415,7 @@ ProcessedFile ImageHandler::process(const std::filesystem::path &path)
 
   ImageMetadata meta = extract_metadata(path);
 
-  // Build structured contextual representation for both lexical (FTS5) and vector embedding
+  // Build structured contextual representation for lexical and vector embedding
   std::string text = path.filename().string();
   text += "\n[Image] ";
 

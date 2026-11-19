@@ -8,6 +8,8 @@ qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(lazyfinder
   main.cc
+  desktop_launcher.cc
+  desktop_launcher.hh
   search_controller.cc
   search_controller.hh
   results_model.cc

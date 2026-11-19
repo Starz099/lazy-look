@@ -105,25 +105,23 @@ std::vector<std::filesystem::path> Config::model_search_directories()
   std::vector<std::filesystem::path> dirs;
   std::error_code ec;
 
-  // 1. Explicit environment override
+  // Environment variable override
   const char *env_dir = std::getenv("LAZYFINDER_MODELS_DIR");
   if (env_dir && *env_dir) {
     dirs.emplace_back(env_dir);
   }
 
-  // 2. Application-relative directory (AppImage / portable bundle)
+  // Application-relative directory for AppImage and portable bundles
   if (std::filesystem::exists("/proc/self/exe", ec)) {
     const auto exe_path = std::filesystem::canonical("/proc/self/exe", ec);
     if (!ec && !exe_path.empty()) {
       const auto exe_dir = exe_path.parent_path();
-      // AppDir layout: ${APPDIR}/usr/bin/lazyfinder -> ${APPDIR}/usr/share/lazyfinder/models
       dirs.push_back(exe_dir.parent_path() / "share" / "lazyfinder" / "models");
-      // Portable binary folder: <dir>/models
       dirs.push_back(exe_dir / "models");
     }
   }
 
-  // 3. User XDG Data Home
+  // User XDG data directory
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
     dirs.push_back(std::filesystem::path(xdg_data) / "lazyfinder" / "models");
@@ -135,11 +133,11 @@ std::vector<std::filesystem::path> Config::model_search_directories()
     }
   }
 
-  // 4. System-wide directories
+  // System-wide directories
   dirs.emplace_back("/usr/share/lazyfinder/models");
   dirs.emplace_back("/usr/local/share/lazyfinder/models");
 
-  // 5. Working directory fallbacks
+  // Working directory fallbacks
   dirs.push_back(std::filesystem::current_path() / "models");
   dirs.push_back(std::filesystem::current_path());
 

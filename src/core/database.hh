@@ -26,8 +26,8 @@ struct SearchResult
   float score = 0.0f;
   int64_t file_id = 0;
   int chunk_index = 0;
-  int page_number = 0;        // 1-based page / slide index, or seconds for media
-  std::string thumbnail_path; // Keyframe preview thumbnail path (optional)
+  int page_number = 0;
+  std::string thumbnail_path;
 };
 
 struct ChunkRecord

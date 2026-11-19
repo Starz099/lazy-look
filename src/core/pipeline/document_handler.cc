@@ -22,6 +22,9 @@ constexpr size_t max_file_size = 20 * 1024 * 1024;
 constexpr size_t max_chunk_chars = 2500;
 constexpr size_t chunk_overlap_chars = 150;
 constexpr size_t max_chunks_per_file = 25;
+constexpr size_t kSingleChunkContentThreshold = 3500;
+constexpr size_t kMaxCodeChunks = 6;
+constexpr size_t kMinExtractedTextLength = 15;
 
 const std::unordered_set<std::string> &code_extensions()
 {
@@ -551,10 +554,10 @@ std::vector<ProcessedChunk> DocumentHandler::extract_text(const std::filesystem:
       ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
 
   if (code_extensions().contains(ext)) {
-    if (content.size() <= 3500) {
+    if (content.size() <= kSingleChunkContentThreshold) {
       return {ProcessedChunk{std::move(content), 0, {}}};
     }
-    return to_chunks(content, 0, 6);
+    return to_chunks(content, 0, kMaxCodeChunks);
   }
 
   return to_chunks(content, 0, max_chunks_per_file);
@@ -592,7 +595,7 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
       }
 
       std::string page_text = clean_text(page->text().to_utf8());
-      if (page_text.size() >= 15) {
+      if (page_text.size() >= kMinExtractedTextLength) {
         if (page_text.size() > max_chunk_chars) {
           page_text.resize(max_chunk_chars);
         }
@@ -623,7 +626,7 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
     for (char *p = buffer; *p != '\0'; ++p) {
       if (*p == '\x0c') {
         std::string cleaned = clean_text(current_page);
-        if (cleaned.size() >= 15) {
+        if (cleaned.size() >= kMinExtractedTextLength) {
           if (cleaned.size() > max_chunk_chars) {
             cleaned.resize(max_chunk_chars);
           }
@@ -645,7 +648,7 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
 
   if (!current_page.empty()) {
     std::string cleaned = clean_text(current_page);
-    if (cleaned.size() >= 15 && chunks.size() < max_chunks_per_file) {
+    if (cleaned.size() >= kMinExtractedTextLength && chunks.size() < max_chunks_per_file) {
       if (cleaned.size() > max_chunk_chars) {
         cleaned.resize(max_chunk_chars);
       }
@@ -667,7 +670,7 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
           for (char *p = buffer; *p != '\0'; ++p) {
             if (*p == '\x0c') {
               std::string cleaned = clean_text(current_page);
-              if (cleaned.size() >= 15) {
+              if (cleaned.size() >= kMinExtractedTextLength) {
                 if (cleaned.size() > max_chunk_chars) {
                   cleaned.resize(max_chunk_chars);
                 }
@@ -689,7 +692,7 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
 
         if (!current_page.empty()) {
           std::string cleaned = clean_text(current_page);
-          if (cleaned.size() >= 15 && chunks.size() < max_chunks_per_file) {
+          if (cleaned.size() >= kMinExtractedTextLength && chunks.size() < max_chunks_per_file) {
             if (cleaned.size() > max_chunk_chars) {
               cleaned.resize(max_chunk_chars);
             }

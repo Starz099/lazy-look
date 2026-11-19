@@ -317,7 +317,7 @@ void test_subtitles_and_media(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Subtitle and media companion extraction..." << std::endl;
 
-  // 1. SRT subtitle file
+  // Standalone SRT subtitle file
   const auto srt_path = dir / "lecture.srt";
   write_file(srt_path,
              "1\n"
@@ -336,7 +336,7 @@ void test_subtitles_and_media(const std::filesystem::path &dir)
   TEST_ASSERT(srt_chunks[0].find("[02:10]") != std::string::npos,
               "SRT second cue timestamp present (02:10)");
 
-  // 2. WebVTT subtitle file
+  // Standalone WebVTT subtitle file
   const auto vtt_path = dir / "talk.vtt";
   write_file(vtt_path,
              "WEBVTT\n\n"
@@ -350,7 +350,7 @@ void test_subtitles_and_media(const std::filesystem::path &dir)
   TEST_ASSERT(vtt_chunks[0].find("Welcome everyone to the deep dive") != std::string::npos,
               "VTT cue text extracted");
 
-  // 3. Media companion: lecture.mp4 alongside lecture.srt
+  // Media companion subtitle pairing
   const auto mp4_path = dir / "lecture.mp4";
   write_file(mp4_path, "dummy media content");
 
@@ -368,7 +368,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Image & Vision pipeline extraction..." << std::endl;
 
-  // 1. SVG image with embedded vector graphics, title and text
+  // SVG image with embedded vector graphics, title and text
   const auto svg_path = dir / "architecture.svg";
   write_file(svg_path,
              "<svg width=\"1920\" height=\"1080\" viewBox=\"0 0 1920 1080\" "
@@ -389,17 +389,17 @@ void test_image_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(svg_chunks[0].find("Vector Database Pipeline") != std::string::npos,
               "SVG vector text extracted");
 
-  // 2. BMP image header creation
+  // BMP image header creation
   const auto bmp_path = dir / "sample.bmp";
-  // Create a minimal 2x2 24-bit BMP file
+  // Create minimal BMP file
   const std::vector<unsigned char> bmp_bytes = {
-      // BMP Header (14 bytes)
+      // BMP Header
       'B',
       'M',
       70,
       0,
       0,
-      0, // file size = 70
+      0, // File size header
       0,
       0,
       0,
@@ -408,7 +408,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
       0,
       0,
       0, // pixel offset
-      // DIB Header (BITMAPINFOHEADER - 40 bytes)
+      // DIB Header BITMAPINFOHEADER
       40,
       0,
       0,
@@ -416,15 +416,15 @@ void test_image_pipeline(const std::filesystem::path &dir)
       2,
       0,
       0,
-      0, // width = 2
+      0, // Width specification
       2,
       0,
       0,
-      0, // height = 2
+      0, // Height specification
       1,
-      0, // color planes = 1
+      0, // Color planes specification
       24,
-      0, // bpp = 24
+      0, // Bits per pixel specification
       0,
       0,
       0,
@@ -432,7 +432,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
       16,
       0,
       0,
-      0, // image size = 16
+      0, // Image size specification
       0,
       0,
       0,
@@ -449,7 +449,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
       0,
       0,
       0,
-      // Pixels (2x2 with 2-byte row padding)
+      // Pixel buffer with row padding
       255,
       0,
       0,
@@ -457,7 +457,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
       255,
       0,
       0,
-      0, // Row 1
+      0, // First row
       0,
       0,
       255,
@@ -465,7 +465,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
       255,
       255,
       0,
-      0 // Row 2
+      0 // Second row
   };
   std::ofstream bmp_out(bmp_path, std::ios::binary);
   bmp_out.write(reinterpret_cast<const char *>(bmp_bytes.data()),
@@ -478,7 +478,7 @@ void test_image_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(bmp_chunks[0].find("BMP") != std::string::npos, "BMP format detected");
   TEST_ASSERT(bmp_chunks[0].find("2x2") != std::string::npos, "BMP dimensions 2x2 extracted");
 
-  // 3. SVG with single quotes in attributes
+  // SVG with single quotes in attributes
   const auto single_quote_svg = dir / "single_quote.svg";
   write_file(single_quote_svg,
              "<svg xmlns='http://www.w3.org/2000/svg' width='640' height='480'>\n"
@@ -551,13 +551,13 @@ void test_video_pipeline(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Video Pipeline: Chapters, Timecodes, and Thumbnails..." << std::endl;
 
-  // 1. Timecode formatting
+  // Timecode formatting
   TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(0) == "00:00", "0s -> 00:00");
   TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(59) == "00:59", "59s -> 00:59");
   TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(83) == "01:23", "83s -> 01:23");
   TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(3665) == "01:01:05", "3665s -> 01:01:05");
 
-  // 2. Chapter parsing from ffmetadata
+  // Chapter parsing from ffmetadata
   std::string metadata_sample = ";FFMETADATA1\n"
                                 "title=Engineering Presentation\n"
                                 "[CHAPTER]\n"
@@ -585,13 +585,13 @@ void test_video_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(chapters[2].start_seconds == 120, "Chapter 2 starts at 120s");
   TEST_ASSERT(chapters[2].title == "Q&A and Next Steps", "Chapter 2 title matches");
 
-  // 3. Thumbnails directory resolution
+  // Thumbnails directory resolution
   auto thumb_dir = lazyfinder::MediaHandler::thumbnails_directory();
   TEST_ASSERT(!thumb_dir.empty(), "Thumbnails directory path non-empty");
   std::error_code ec;
   TEST_ASSERT(std::filesystem::exists(thumb_dir, ec), "Thumbnails directory exists on disk");
 
-  // 4. Video processing with companion subtitles
+  // Video processing with companion subtitles
   const auto test_vid = dir / "clip.mp4";
   write_file(test_vid, "dummy mp4 header");
   const auto test_sub = dir / "clip.srt";
@@ -606,7 +606,7 @@ void test_video_pipeline(const std::filesystem::path &dir)
               "Chunk has video filename");
   TEST_ASSERT(processed.chunks[0].page_or_timestamp == 10, "First chunk timestamp is 10s");
 
-  // 5. Robust subtitle parsing edge cases: markup tags & missing blank line
+  // Robust subtitle parsing edge cases: markup tags and missing blank line
   std::string srt_edge_case = "1\n"
                               "00:00:05,500 --> 00:00:09,000\n"
                               "<i>Welcome to</i> <b>LazyFinder</b>!\n"
@@ -620,7 +620,7 @@ void test_video_pipeline(const std::filesystem::path &dir)
               "Stripped VTT tags from cue 1");
   TEST_ASSERT(edge_cues[1].seconds == 10, "Cue 1 timestamp is 10s");
 
-  // 6. Untitled video chapters
+  // Untitled video chapters
   std::string untitled_metadata = ";FFMETADATA1\n"
                                   "[CHAPTER]\n"
                                   "TIMEBASE=1/1000\n"
@@ -631,7 +631,7 @@ void test_video_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(untitled_chaps[0].title == "Chapter 1", "Untitled chapter assigned default name");
   TEST_ASSERT(untitled_chaps[0].start_seconds == 5, "Untitled chapter starts at 5s");
 
-  // 7. WebVTT subtitle parsing with dot timecodes and mm:ss format
+  // WebVTT subtitle parsing with dot timecodes and mm:ss format
   std::string vtt_sample = "WEBVTT\n\n"
                            "NOTE This is an editorial note\n\n"
                            "00:01.250 --> 00:03.500\n"
@@ -645,7 +645,7 @@ void test_video_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(vtt_cues[1].seconds == 75, "WebVTT cue 1 at 75s (01:15)");
   TEST_ASSERT(vtt_cues[1].badge == "01:15", "WebVTT cue 1 badge matches");
 
-  // 8. End-to-end real synthetic video generation and thumbnail extraction
+  // Real synthetic video generation and thumbnail extraction
   const auto synth_vid = dir / "synthetic.mp4";
   const std::string gen_cmd =
       "ffmpeg -f lavfi -i testsrc=duration=4:size=320x240:rate=10 -f lavfi -i "
@@ -709,7 +709,7 @@ void test_audio_pipeline(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Audio Pipeline: Slicing, Windowing, and Speech Hooks..." << std::endl;
 
-  // 1. Audio window slicing (30s windows with 15s hop)
+  // Audio window slicing with overlapping hop
   auto slices = lazyfinder::MediaHandler::slice_audio_windows("fake.mp3", 95);
   TEST_ASSERT(slices.size() == 6, "Sliced 95s audio into 6 overlapping windows");
   TEST_ASSERT(slices[0].start_seconds == 0 && slices[0].end_seconds == 30, "Window 0: 0-30s");
@@ -718,7 +718,7 @@ void test_audio_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(slices[1].badge == "00:15", "Window 1 badge is 00:15");
   TEST_ASSERT(slices[5].start_seconds == 75 && slices[5].end_seconds == 95, "Window 5: 75-95s");
 
-  // 2. Synthetic audio file processing with ffmpeg
+  // Synthetic audio file processing with ffmpeg
   const auto synth_audio = dir / "podcast.mp3";
   const std::string gen_audio =
       "ffmpeg -f lavfi -i sine=frequency=440:duration=5 -c:a libmp3lame -y " +
@@ -739,23 +739,23 @@ void test_edge_cases(const std::filesystem::path &dir)
 {
   std::cout << "[Test] Edge cases and safety..." << std::endl;
 
-  // 1. Non-existent file
+  // Non-existent file handling
   auto missing_chunks = lazyfinder::Extractor::extract_chunks(dir / "non_existent.txt");
   TEST_ASSERT(missing_chunks.empty(), "Non-existent file returns empty safely");
 
-  // 2. 0-byte file
+  // Zero-byte file handling
   const auto empty_path = dir / "empty.txt";
   write_file(empty_path, "");
   auto empty_chunks = lazyfinder::Extractor::extract_chunks(empty_path);
   TEST_ASSERT(empty_chunks.empty(), "0-byte file returns empty safely");
 
-  // 3. File path with spaces, symbols, and brackets
+  // File path with spaces, symbols, and brackets
   auto special_chunks = lazyfinder::Extractor::extract_chunks(dir / "special [name] & spaces.docx");
   TEST_ASSERT(!special_chunks.empty(), "Path with spaces and symbols extracts properly");
   TEST_ASSERT(special_chunks[0].find("Content in escaped filename.") != std::string::npos,
               "Escaped path content extracted");
 
-  // 4. Binary unreadable file fallback
+  // Binary unreadable file fallback
   const auto bin_path = dir / "mystery.txt";
   std::string binary_data = "header\0\1\2\3binary_data"s;
   write_file(bin_path, binary_data);
@@ -763,7 +763,7 @@ void test_edge_cases(const std::filesystem::path &dir)
   TEST_ASSERT(!bin_chunks.empty(), "Binary file with supported ext has fallback");
   TEST_ASSERT(bin_chunks[0] == "mystery.txt", "Binary file falls back to filename for indexing");
 
-  // 5. Oversized file (> 20 MB)
+  // Oversized file handling
   const auto oversized_path = dir / "large.txt";
   {
     std::ofstream out(oversized_path, std::ios::binary);

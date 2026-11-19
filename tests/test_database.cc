@@ -48,7 +48,7 @@ void test_database_crud()
   TEST_ASSERT(db.total_files() == 0, "Initial files count is 0");
   TEST_ASSERT(db.total_chunks() == 0, "Initial chunks count is 0");
 
-  // Stage 1: Insert file and chunks
+  // Insert file and chunks
   const std::string file_path = "/test/documents/financial_report.pdf";
   const std::vector<std::string> chunks = {
       "financial_report.pdf\nQuarterly Revenue: 50 Million USD",
@@ -66,7 +66,7 @@ void test_database_crud()
   TEST_ASSERT(db.needs_reindex(file_path, 2048, 1700000000), "Different size needs reindex");
   TEST_ASSERT(db.needs_reindex(file_path, 1024, 1700000050), "Different mtime needs reindex");
 
-  // Stage 2: Insert embeddings (768-dim)
+  // Insert vector embeddings
   auto vec1 = make_dummy_vector(768, 0.1f);
   auto vec2 = make_dummy_vector(768, 0.2f);
   TEST_ASSERT(db.insert_chunk_embedding((*chunk_ids)[0], vec1), "Insert chunk 1 embedding");
@@ -107,7 +107,7 @@ void test_directory_removal_and_dedup()
   lazyfinder::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
-  // Insert 3 files in two directories
+  // Insert files across directories
   db.insert_file_chunks(
       "/projects/app1/main.rs", 100, 1000, {"main.rs\nfn main() { run_server(); }"});
   db.insert_file_chunks("/projects/app1/config.toml", 50, 1000, {"config.toml\nport = 8080"});
@@ -126,7 +126,7 @@ void test_directory_removal_and_dedup()
 
   TEST_ASSERT(db.total_files() == 4, "Total files 4");
 
-  // Search for "Server": /docs/guide.md has 3 matching chunks, but must only appear ONCE in results
+  // Verify deduplication so multi-chunk files appear only once
   auto results = db.search_hybrid({}, "Server", 10);
   int guide_count = 0;
   for (const auto &res : results) {
@@ -136,7 +136,7 @@ void test_directory_removal_and_dedup()
   }
   TEST_ASSERT(guide_count == 1, "Multi-chunk file is deduplicated in results list");
 
-  // Remove directory /projects/app1
+  // Remove directory
   TEST_ASSERT(db.remove_directory("/projects/app1"), "Remove directory /projects/app1");
   TEST_ASSERT(db.total_files() == 2, "2 files remain (/projects/app2/main.rs and /docs/guide.md)");
   TEST_ASSERT(!db.get_file("/projects/app1/main.rs").has_value(), "app1/main.rs deleted");
@@ -172,17 +172,17 @@ void test_query_intelligence_and_prefix()
       1000,
       {"changelog.txt\nFixed database connection timeout issue in background worker thread."});
 
-  // 1. Prefix query: "valid" expands to valid* matching validateSessionToken
+  // Prefix query: "valid" expands to valid* matching validateSessionToken
   auto res_prefix = db.search_hybrid({}, "valid", 5);
   TEST_ASSERT(!res_prefix.empty(), "Prefix search for 'valid' matches validateSessionToken");
   TEST_ASSERT(res_prefix[0].path == "/src/auth.cc", "Matched auth.cc");
 
-  // 2. camelCase query: "getUserProfile" splits into tokens matching getUserProfileById
+  // camelCase query: "getUserProfile" splits into tokens matching getUserProfileById
   auto res_camel = db.search_hybrid({}, "getUserProfile", 5);
   TEST_ASSERT(!res_camel.empty(), "camelCase search finds getUserProfileById");
   TEST_ASSERT(res_camel[0].path == "/src/user_controller.cc", "Matched user_controller.cc");
 
-  // 3. Quoted phrase search: "\"connection timeout\""
+  // Quoted phrase search: "\"connection timeout\""
   auto res_phrase = db.search_hybrid({}, "\"connection timeout\"", 5);
   TEST_ASSERT(!res_phrase.empty(), "Quoted phrase matches changelog.txt");
   TEST_ASSERT(res_phrase[0].path == "/docs/changelog.txt", "Matched changelog.txt");
@@ -200,7 +200,7 @@ void test_contextual_snippets_and_pages()
   lazyfinder::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
-  // Multi-page PDF: 3 pages (chunk 0 = page 1, chunk 1 = page 2, chunk 2 = page 3)
+  // Multi-page document records
   const std::string pdf_path = "/docs/manual.pdf";
   const std::vector<std::string> pdf_chunks = {
       "manual.pdf\nIntroduction to the platform and system prerequisites.",
@@ -209,14 +209,14 @@ void test_contextual_snippets_and_pages()
       "manual.pdf\nSection 3: Conclusion and troubleshooting common errors."};
   db.insert_file_chunks(pdf_path, 1000, 1000, pdf_chunks);
 
-  // Multi-slide PPTX: 2 slides (chunk 0 = slide 1, chunk 1 = slide 2)
+  // Multi-slide presentation records
   const std::string pptx_path = "/slides/strategy.pptx";
   const std::vector<std::string> pptx_chunks = {
       "strategy.pptx\nSlide 1 Title: Q3 Engineering Goals and Deliverables",
       "strategy.pptx\nSlide 2: High Performance Vector Search and Hardware Acceleration"};
   db.insert_file_chunks(pptx_path, 2000, 1000, pptx_chunks);
 
-  // Search for "PostgreSQL" in the PDF -> should match chunk 1 -> page 2
+  // Match PDF page location
   auto res_pdf = db.search_hybrid({}, "PostgreSQL", 5);
   TEST_ASSERT(!res_pdf.empty(), "Found PDF result for PostgreSQL");
   TEST_ASSERT(res_pdf[0].path == pdf_path, "PDF path matches");
@@ -226,7 +226,7 @@ void test_contextual_snippets_and_pages()
   TEST_ASSERT(res_pdf[0].snippet.find("PostgreSQL") != std::string::npos,
               "Snippet contains PostgreSQL term");
 
-  // Search for "Hardware" in PPTX -> should match chunk 1 -> slide 2
+  // Match PPTX slide location
   auto res_pptx = db.search_hybrid({}, "Hardware", 5);
   TEST_ASSERT(!res_pptx.empty(), "Found PPTX result for Hardware");
   TEST_ASSERT(res_pptx[0].path == pptx_path, "PPTX path matches");
@@ -234,7 +234,7 @@ void test_contextual_snippets_and_pages()
   TEST_ASSERT(res_pptx[0].snippet.find("Slide 2 • ") != std::string::npos,
               "Snippet contains Slide 2 badge");
 
-  // Media file with timestamps: lecture.mp4
+  // Media file with timestamps
   const std::string mp4_path = "/media/lecture.mp4";
   const std::vector<std::string> mp4_chunks = {
       "lecture.mp4\n[00:30] Course overview and syllabus introduction.",
@@ -242,7 +242,7 @@ void test_contextual_snippets_and_pages()
       "lecture.mp4\n[05:40] Final wrap up and next steps."};
   db.insert_file_chunks(mp4_path, 5000, 1000, mp4_chunks);
 
-  // Search for "Kubernetes" in MP4 -> should match chunk 1 with timestamp [02:15] = 135 seconds
+  // Match media chunk timestamp
   auto res_media = db.search_hybrid({}, "Kubernetes", 5);
   TEST_ASSERT(!res_media.empty(), "Found media result for Kubernetes");
   TEST_ASSERT(res_media[0].path == mp4_path, "Media path matches");
@@ -272,10 +272,10 @@ void test_utf8_snippet_cleanliness()
   auto res = db.search_hybrid({}, "Vulkan", 5);
   TEST_ASSERT(!res.empty(), "Found result for Vulkan");
   TEST_ASSERT(res[0].page_number == 1, "Page number is 1");
-  // Check badge contains clean bullet • (U+2022)
+  // Verify clean bullet badge formatting
   TEST_ASSERT(res[0].snippet.find("Page 1 • ") != std::string::npos,
               "Snippet contains clean bullet badge Page 1 • ");
-  // Check content contains clean bullet • (U+2022) and NO mojibake \xc3\xa2 (â)
+  // Verify content preserves bullet points without mojibake
   TEST_ASSERT(res[0].snippet.find("Code • C++20") != std::string::npos,
               "Snippet preserves internal bullet point without alteration");
   TEST_ASSERT(res[0].snippet.find("â") == std::string::npos,
@@ -328,7 +328,7 @@ void test_query_category_prefixes()
 {
   std::cout << "[Test] Query Category Prefixes and Category Filtering..." << std::endl;
 
-  // 1. Prefix parsing verification
+  // Prefix parsing verification
   auto q1 = lazyfinder::Database::parse_query_category("code: calculate_hash");
   TEST_ASSERT(q1.category == lazyfinder::QueryCategory::Code, "Parsed 'code:' as Code");
   TEST_ASSERT(q1.text == "calculate_hash", "Extracted clean text 'calculate_hash'");
@@ -361,7 +361,7 @@ void test_query_category_prefixes()
   TEST_ASSERT(q8.category == lazyfinder::QueryCategory::All, "Regular text parsed as All");
   TEST_ASSERT(q8.text == "regular search text", "Clean text preserved");
 
-  // 2. Path matching verification
+  // Path matching verification
   TEST_ASSERT(
       lazyfinder::Database::path_matches_category("main.rs", lazyfinder::QueryCategory::Code),
       "main.rs is Code");
@@ -384,7 +384,7 @@ void test_query_category_prefixes()
       lazyfinder::Database::path_matches_category("song.mp3", lazyfinder::QueryCategory::Media),
       "song.mp3 is Media");
 
-  // 3. Category filtered hybrid search verification
+  // Category filtered hybrid search verification
   const std::string db_path = "/tmp/test_cat_prefix_" + std::to_string(std::rand()) + ".db";
   lazyfinder::Database db;
   TEST_ASSERT(db.open(db_path), "Database opened");
@@ -411,12 +411,12 @@ void test_query_category_prefixes()
   TEST_ASSERT(img_res.size() == 1, "Only 1 result for 'image: compute_value'");
   TEST_ASSERT(img_res[0].path == "images/diagram.png", "Result is diagram.png");
 
-  // Query "video: compute_value" -> should return ONLY videos/demo.mp4
+  // Query with video category filter
   auto vid_res = db.search_hybrid({}, "video: compute_value", 10);
   TEST_ASSERT(vid_res.size() == 1, "Only 1 result for 'video: compute_value'");
   TEST_ASSERT(vid_res[0].path == "videos/demo.mp4", "Result is demo.mp4");
 
-  // Query "audio: compute_value" -> should return ONLY podcasts/show.mp3
+  // Query with audio category filter
   auto aud_res = db.search_hybrid({}, "audio: compute_value", 10);
   TEST_ASSERT(aud_res.size() == 1, "Only 1 result for 'audio: compute_value'");
   TEST_ASSERT(aud_res[0].path == "podcasts/show.mp3", "Result is show.mp3");

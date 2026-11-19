@@ -120,8 +120,10 @@ void Watcher::Impl::run()
   std::unordered_set<std::string> pending_changes;
   auto debounce_deadline = std::chrono::steady_clock::time_point::max();
   constexpr auto debounce_duration = std::chrono::seconds(3);
+  constexpr int64_t kMinPollTimeoutMs = 10;
+  constexpr nfds_t kPollFdCount = 2;
 
-  struct pollfd fds[2];
+  struct pollfd fds[kPollFdCount];
   fds[0].fd = inotify_fd;
   fds[0].events = POLLIN;
   fds[1].fd = stop_fd;
@@ -136,11 +138,11 @@ void Watcher::Impl::run()
       }
       else {
         auto rem = std::chrono::duration_cast<std::chrono::milliseconds>(debounce_deadline - now);
-        timeout_ms = static_cast<int>(std::max<int64_t>(10, rem.count()));
+        timeout_ms = static_cast<int>(std::max<int64_t>(kMinPollTimeoutMs, rem.count()));
       }
     }
 
-    int ret = poll(fds, 2, timeout_ms);
+    int ret = poll(fds, kPollFdCount, timeout_ms);
     if (ret < 0) {
       if (errno == EINTR) {
         continue;

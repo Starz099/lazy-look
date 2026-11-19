@@ -17,6 +17,15 @@
 #include <iostream>
 #include <unistd.h>
 
+namespace
+{
+
+constexpr int kIpcSocketTimeoutMs = 250;
+constexpr int kTrayIconWidth = 24;
+constexpr int kTrayIconHeight = 24;
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
   // Filter benign Qt platform abstraction warnings on Wayland/Portal
@@ -75,7 +84,7 @@ int main(int argc, char *argv[])
   {
     QLocalSocket socket;
     socket.connectToServer(serverName);
-    if (socket.waitForConnected(250)) {
+    if (socket.waitForConnected(kIpcSocketTimeoutMs)) {
       QString cmd = "TOGGLE";
       if (parser.isSet(showOption)) {
         cmd = "SHOW";
@@ -97,7 +106,7 @@ int main(int argc, char *argv[])
       cmd += "\n";
       socket.write(cmd.toUtf8());
       socket.flush();
-      socket.waitForBytesWritten(250);
+      socket.waitForBytesWritten(kIpcSocketTimeoutMs);
       return 0;
     }
   }
@@ -162,7 +171,7 @@ int main(int argc, char *argv[])
   QSystemTrayIcon trayIcon;
   QIcon searchIcon = QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search"));
   if (searchIcon.isNull()) {
-    QPixmap pixmap(24, 24);
+    QPixmap pixmap(kTrayIconWidth, kTrayIconHeight);
     pixmap.fill(Qt::transparent);
     QPainter p(&pixmap);
     p.setRenderHint(QPainter::Antialiasing);

@@ -5,8 +5,14 @@ import QtQuick.Controls
 Window {
   id: window
   visible: true
-  width: 680
-  height: 500
+
+  readonly property int defaultWidth: 680
+  readonly property int defaultHeight: 500
+  readonly property int cardRadius: 14
+  readonly property int cardMargin: 12
+
+  width: defaultWidth
+  height: defaultHeight
   color: "transparent"
   flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
 
@@ -24,18 +30,16 @@ Window {
     }
   }
 
-  // Center on screen horizontally and position in upper third
   Component.onCompleted: {
     x = (Screen.width - width) / 2;
     y = Math.max(80, (Screen.height - height) / 4);
     searchBox.focusInput();
   }
 
-  // Floating Spotlight Card (Tasteful warm matte stone-gray like DigUp)
   Rectangle {
     id: card
     anchors.fill: parent
-    radius: 14
+    radius: window.cardRadius
     color: "#2d2c2a"
     border.color: Qt.rgba(255, 255, 255, 0.09)
     border.width: 1
@@ -43,9 +47,9 @@ Window {
 
     Item {
       anchors.fill: parent
-      anchors.margins: 12
+      anchors.margins: window.cardMargin
 
-      // 1. Search Box
+      // Search Box
       SearchBox {
         id: searchBox
         anchors.top: parent.top
@@ -86,7 +90,7 @@ Window {
         visible: !window.settingsOpen
       }
 
-      // 2. Status Bar at Bottom
+      // Status Bar at Bottom
       StatusBar {
         id: statusBar
         anchors.bottom: parent.bottom
@@ -95,7 +99,7 @@ Window {
         visible: !window.settingsOpen
       }
 
-      // 3. Central Content Area
+      // Central Content Area
       Item {
         id: centralArea
         anchors.top: window.settingsOpen ? searchBox.bottom : topDivider.bottom

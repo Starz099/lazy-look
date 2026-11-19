@@ -16,7 +16,7 @@ struct DisplayResult
   QString directory;
   QString score;
   QString snippet;
-  QString category; // "all", "doc", "code", "media", "other"
+  QString category;
   QString iconName;
   int pageNumber = 0;
   QString thumbnailPath;
@@ -54,10 +54,7 @@ public:
   [[nodiscard]] Q_INVOKABLE int pageNumberAt(int index) const;
 
 private:
-  void applyFilter();
-
-  std::vector<DisplayResult> all_results_;
-  std::vector<DisplayResult> filtered_results_;
+  std::vector<DisplayResult> results_;
   QString current_filter_ = "all";
 };
 

@@ -1,8 +1,7 @@
 #include "search_controller.hh"
 
-#include <QClipboard>
-#include <QDBusConnection>
-#include <QDBusMessage>
+#include "desktop_launcher.hh"
+
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
@@ -10,7 +9,6 @@
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QNetworkRequest>
-#include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
 #include <chrono>
@@ -20,10 +18,20 @@
 namespace lazyfinder
 {
 
+namespace
+{
+
+constexpr int kDebounceIntervalMs = 120;
+constexpr int kModelIdleTimeoutMs = 5 * 60 * 1000;
+constexpr size_t kScanProgressInterval = 50;
+constexpr double kBytesPerMegabyte = 1024.0 * 1024.0;
+
+} // namespace
+
 SearchController::SearchController(QObject *parent) : QObject(parent)
 {
   debounce_timer_.setSingleShot(true);
-  debounce_timer_.setInterval(120);
+  debounce_timer_.setInterval(kDebounceIntervalMs);
   connect(&debounce_timer_, &QTimer::timeout, this, [this]() {
     const QString current_q = query_.trimmed();
     if (current_q.isEmpty()) {
@@ -35,7 +43,7 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
   });
 
   model_sleep_timer_.setSingleShot(true);
-  model_sleep_timer_.setInterval(5 * 60 * 1000); // 5 min idle
+  model_sleep_timer_.setInterval(kModelIdleTimeoutMs);
   connect(&model_sleep_timer_, &QTimer::timeout, this, [this]() {
     if (Config::instance().memory_saver() && !is_indexing_) {
       embedder_.unload_model();
@@ -167,196 +175,18 @@ void SearchController::openFile(const QString &path, int pageNumber)
   if (path.isEmpty()) {
     return;
   }
-
-  std::cout << "[LazyFinder] Opening file: " << path.toStdString() << " (page: " << pageNumber
-            << ")" << std::endl;
-
-  const QString lower = path.toLower();
-
-  // 1. PDF Documents -> jump directly to page if page > 1
-  if (pageNumber > 1 && lower.endsWith(".pdf")) {
-    const QString papers_bin = QStandardPaths::findExecutable("papers");
-    if (!papers_bin.isEmpty() &&
-        QProcess::startDetached(papers_bin, {"-i", QString::number(pageNumber), path})) {
-      emit fileOpened();
-      return;
-    }
-
-    const QString evince_bin = QStandardPaths::findExecutable("evince");
-    if (!evince_bin.isEmpty() &&
-        QProcess::startDetached(evince_bin, {"-i", QString::number(pageNumber), path})) {
-      emit fileOpened();
-      return;
-    }
-
-    const QString okular_bin = QStandardPaths::findExecutable("okular");
-    if (!okular_bin.isEmpty() &&
-        QProcess::startDetached(okular_bin, {"-p", QString::number(pageNumber), path})) {
-      emit fileOpened();
-      return;
-    }
-  }
-
-  // 2. Presentations (.pptx, .odp, .ppt) -> jump to slide if slide > 1
-  if (pageNumber > 1 &&
-      (lower.endsWith(".pptx") || lower.endsWith(".odp") || lower.endsWith(".ppt"))) {
-    const QString lo_bin = QStandardPaths::findExecutable("libreoffice");
-    if (!lo_bin.isEmpty() &&
-        QProcess::startDetached(lo_bin, {"--show=" + QString::number(pageNumber), path})) {
-      emit fileOpened();
-      return;
-    }
-  }
-
-  // 3. Video / Audio / Subtitle media -> jump to timestamp (seconds) if player supports it
-  static const QStringList media_exts = {".mp4",
-                                         ".mkv",
-                                         ".webm",
-                                         ".avi",
-                                         ".mov",
-                                         ".flv",
-                                         ".wmv",
-                                         ".mp3",
-                                         ".wav",
-                                         ".ogg",
-                                         ".flac",
-                                         ".m4a",
-                                         ".aac",
-                                         ".opus",
-                                         ".srt",
-                                         ".vtt"};
-  bool is_media = false;
-  for (const auto &mext : media_exts) {
-    if (lower.endsWith(mext)) {
-      is_media = true;
-      break;
-    }
-  }
-
-  QString target_path = path;
-  if (is_media && (lower.endsWith(".srt") || lower.endsWith(".vtt"))) {
-    QFileInfo fi(path);
-    QString base = fi.path() + "/" + fi.completeBaseName();
-    for (const auto &vext : {".mp4", ".mkv", ".webm", ".avi", ".mov"}) {
-      if (QFile::exists(base + vext)) {
-        target_path = base + vext;
-        break;
-      }
-    }
-  }
-
-  if (pageNumber > 0 && is_media) {
-    // 1. Try mpv
-    const QString mpv_bin = QStandardPaths::findExecutable("mpv");
-    if (!mpv_bin.isEmpty() &&
-        QProcess::startDetached(mpv_bin, {"--start=" + QString::number(pageNumber), target_path})) {
-      emit fileOpened();
-      return;
-    }
-
-    // 2. Try VLC
-    const QString vlc_bin = QStandardPaths::findExecutable("vlc");
-    if (!vlc_bin.isEmpty() &&
-        QProcess::startDetached(vlc_bin,
-                                {"--start-time", QString::number(pageNumber), target_path})) {
-      emit fileOpened();
-      return;
-    }
-
-    // 3. Try Totem (GNOME Videos)
-    const QString totem_bin = QStandardPaths::findExecutable("totem");
-    if (!totem_bin.isEmpty() &&
-        QProcess::startDetached(
-            totem_bin,
-            {"--seek", QString::number(static_cast<qint64>(pageNumber) * 1000), target_path})) {
-      emit fileOpened();
-      return;
-    }
-
-    // 4. Try Celluloid (GNOME MPV frontend)
-    const QString celluloid_bin = QStandardPaths::findExecutable("celluloid");
-    if (!celluloid_bin.isEmpty() &&
-        QProcess::startDetached(celluloid_bin,
-                                {"--start=" + QString::number(pageNumber), target_path})) {
-      emit fileOpened();
-      return;
-    }
-
-    // 5. Try SMPlayer
-    const QString smplayer_bin = QStandardPaths::findExecutable("smplayer");
-    if (!smplayer_bin.isEmpty() &&
-        QProcess::startDetached(smplayer_bin,
-                                {"-start", QString::number(pageNumber), target_path})) {
-      emit fileOpened();
-      return;
-    }
-
-    // 6. Try Haruna (KDE player)
-    const QString haruna_bin = QStandardPaths::findExecutable("haruna");
-    if (!haruna_bin.isEmpty() &&
-        QProcess::startDetached(haruna_bin,
-                                {"--start=" + QString::number(pageNumber), target_path})) {
-      emit fileOpened();
-      return;
-    }
-  }
-
-  // Universal fallback: open via default desktop environment handler (Showtime, Clapper, Haruna,
-  // etc.)
-  bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(target_path));
-  if (!ok) {
-    const QString gio_bin = QStandardPaths::findExecutable("gio");
-    if (!gio_bin.isEmpty() && QProcess::startDetached(gio_bin, {"open", target_path})) {
-      ok = true;
-    }
-    else {
-      const QString xdg_bin = QStandardPaths::findExecutable("xdg-open");
-      if (!xdg_bin.isEmpty() && QProcess::startDetached(xdg_bin, {target_path})) {
-        ok = true;
-      }
-    }
-  }
-  std::cout << "[LazyFinder] Open file: " << target_path.toStdString() << " ("
-            << (ok ? "success" : "failed") << ")" << std::endl;
+  DesktopLauncher::open_file(path, pageNumber);
   emit fileOpened();
 }
 
 void SearchController::revealInFolder(const QString &path)
 {
-  if (path.isEmpty()) {
-    return;
-  }
-  QFileInfo fi(path);
-  if (!fi.exists()) {
-    return;
-  }
-
-  // Try FreeDesktop FileManager1 D-Bus interface to select and highlight the exact file
-  const QString fileUrl = QUrl::fromLocalFile(fi.absoluteFilePath()).toString();
-  QDBusMessage msg = QDBusMessage::createMethodCall("org.freedesktop.FileManager1",
-                                                    "/org/freedesktop/FileManager1",
-                                                    "org.freedesktop.FileManager1",
-                                                    "ShowItems");
-  msg << QStringList{fileUrl} << QString("");
-
-  const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::BlockWithGui, 800);
-  if (reply.type() == QDBusMessage::ReplyMessage) {
-    return;
-  }
-
-  // Fallback to opening parent directory
-  QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absolutePath()));
+  DesktopLauncher::reveal_in_folder(path);
 }
 
 void SearchController::copyPath(const QString &path)
 {
-  if (path.isEmpty()) {
-    return;
-  }
-  QClipboard *clipboard = QGuiApplication::clipboard();
-  if (clipboard) {
-    clipboard->setText(path);
-  }
+  DesktopLauncher::copy_path(path);
 }
 
 QStringList SearchController::watchedDirectories() const
@@ -510,7 +340,7 @@ void SearchController::startSync()
             std::cout << "[Sync] ✓ [Indexed: " << indexed << " | Scanned: " << scanned << "] "
                       << p.filename().string() << std::endl;
           }
-          else if (scanned % 50 == 0 || scanned <= 5) {
+          else if (scanned % kScanProgressInterval == 0 || scanned <= 5) {
             std::cout << "[Sync] Checked " << scanned << " files (" << skipped << " up-to-date)..."
                       << std::endl;
           }
@@ -832,12 +662,13 @@ void SearchController::startModelDownload()
                 model_download_progress_ = pct;
                 emit modelDownloadProgressChanged();
               }
-              const double mbReceived = static_cast<double>(bytesReceived) / (1024.0 * 1024.0);
-              const double mbTotal = static_cast<double>(bytesTotal) / (1024.0 * 1024.0);
-              model_download_status_ = QString("Downloading EmbeddingGemma-2: %1% (%2 MB / %3 MB)")
-                                           .arg(pct)
-                                           .arg(QString::number(mbReceived, 'f', 1))
-                                           .arg(QString::number(mbTotal, 'f', 1));
+              const double mbReceived = static_cast<double>(bytesReceived) / kBytesPerMegabyte;
+              const double mbTotal = static_cast<double>(bytesTotal) / kBytesPerMegabyte;
+              model_download_status_ =
+                  QString("Downloading EmbeddingGemma-2: %1% (%2 MB / %3 MB)")
+                      .arg(pct)
+                      .arg(QString::number(mbReceived, 'f', 1))
+                      .arg(QString::number(mbTotal, 'f', 1));
               emit modelDownloadStatusChanged();
             }
           });

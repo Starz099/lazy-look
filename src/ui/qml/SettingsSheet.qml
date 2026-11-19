@@ -110,9 +110,7 @@ Rectangle {
         width: parent.width - 14
         spacing: 14
 
-        // ==========================================
-        // Section 1: Watched Folders
-        // ==========================================
+        // Watched Folders
         Item {
           width: parent.width
           height: 26
@@ -271,9 +269,7 @@ Rectangle {
           color: Qt.rgba(255, 255, 255, 0.07)
         }
 
-        // ==========================================
-        // Section 2: Search Index & Manual Sync
-        // ==========================================
+        // Search Index and Manual Sync
         Item {
           width: parent.width
           height: 32
@@ -362,9 +358,7 @@ Rectangle {
           color: Qt.rgba(255, 255, 255, 0.07)
         }
 
-        // ==========================================
-        // Section 3: AI Neural Weights
-        // ==========================================
+        // AI Neural Weights
         Item {
           width: parent.width
           height: 32
@@ -529,9 +523,7 @@ Rectangle {
           color: Qt.rgba(255, 255, 255, 0.07)
         }
 
-        // ==========================================
-        // Section 4: System Preferences
-        // ==========================================
+        // System Preferences
         Text {
           text: "System Preferences"
           font.pixelSize: 12
