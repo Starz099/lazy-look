@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -24,8 +25,13 @@ public:
   [[nodiscard]] bool is_loaded() const;
   [[nodiscard]] int embedding_dim() const;
 
+  bool load_vision_projector(std::string_view mmproj_path);
+  void unload_vision_projector();
+  [[nodiscard]] bool has_vision_projector() const;
+
   std::vector<float> embed_query(std::string_view text);
   std::vector<float> embed_document(std::string_view text);
+  std::vector<float> embed_image(const std::filesystem::path &image_path);
 
 private:
   std::vector<float> embed_formatted(std::string_view formatted_text);

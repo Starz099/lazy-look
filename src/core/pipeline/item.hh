@@ -1,0 +1,32 @@
+#pragma once
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <vector>
+
+namespace lazyfinder
+{
+
+enum class FileCategory
+{
+  Document,
+  Image,
+  Media
+};
+
+struct ProcessedChunk
+{
+  std::string text;
+  int page_or_timestamp = 0; // 1-based page number (doc) or seconds (media)
+  std::vector<float> custom_embedding;
+};
+
+struct ProcessedFile
+{
+  std::filesystem::path path;
+  FileCategory category = FileCategory::Document;
+  std::vector<ProcessedChunk> chunks;
+};
+
+} // namespace lazyfinder

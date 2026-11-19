@@ -217,6 +217,10 @@ bool Config::load()
     }
   }
 
+  if (launch_on_startup_) {
+    set_autostart_desktop_file(true);
+  }
+
   return true;
 }
 
@@ -452,11 +456,16 @@ bool Config::set_autostart_desktop_file(bool enabled)
     return false;
   }
   file << "[Desktop Entry]\n"
+       << "Version=1.0\n"
        << "Type=Application\n"
        << "Name=LazyFinder\n"
+       << "GenericName=Desktop Search\n"
        << "Comment=Instant AI & Hybrid Desktop Search\n"
-       << "Exec=lazyfinder --daemon\n"
-       << "Icon=system-search\n"
+       << "Exec=sh -c \"PATH=$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:$PATH exec "
+          "lazyfinder --daemon\"\n"
+       << "Icon=lazyfinder\n"
+       << "Terminal=false\n"
+       << "Categories=Utility;Filesystem;\n"
        << "Hidden=false\n"
        << "NoDisplay=false\n"
        << "X-GNOME-Autostart-enabled=true\n";

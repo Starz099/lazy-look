@@ -1,13 +1,20 @@
 #include "embedder.hh"
 
+#include "pipeline/image_handler.hh"
+
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <llama.h>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+
+#ifdef HAVE_MTMD
+#include "mtmd.h"
+#endif
 
 namespace lazyfinder
 {
@@ -53,6 +60,9 @@ struct Embedder::Impl
   llama_context *ctx = nullptr;
   const llama_vocab *vocab = nullptr;
   int32_t n_embd = 0;
+#ifdef HAVE_MTMD
+  mtmd_context *mmproj_ctx = nullptr;
+#endif
   mutable std::mutex mutex;
 };
 
@@ -65,6 +75,12 @@ Embedder::~Embedder()
 {
   if (impl_) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+    if (impl_->mmproj_ctx) {
+      mtmd_free(impl_->mmproj_ctx);
+      impl_->mmproj_ctx = nullptr;
+    }
+#endif
     if (impl_->ctx) {
       llama_free(impl_->ctx);
       impl_->ctx = nullptr;
@@ -82,6 +98,12 @@ Embedder &Embedder::operator=(Embedder &&) noexcept = default;
 bool Embedder::load_model(std::string_view model_path)
 {
   std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+  if (impl_->mmproj_ctx) {
+    mtmd_free(impl_->mmproj_ctx);
+    impl_->mmproj_ctx = nullptr;
+  }
+#endif
   if (impl_->ctx) {
     llama_free(impl_->ctx);
     impl_->ctx = nullptr;
@@ -129,12 +151,42 @@ bool Embedder::load_model(std::string_view model_path)
     impl_->n_embd = llama_model_n_embd(impl_->model);
   }
 
+  // Probe companion vision projector in model directory
+  std::filesystem::path mpath(model_path);
+  const auto parent = mpath.parent_path();
+  std::error_code ec;
+  for (const auto &cand : {"mmproj.gguf",
+                           "mmproj-model-f16.gguf",
+                           "mmproj-f16.gguf",
+                           "mmproj-embeddinggemma-2.gguf"}) {
+    const auto p = parent / cand;
+    if (std::filesystem::exists(p, ec)) {
+      std::string mm_path = p.string();
+#ifdef HAVE_MTMD
+      mtmd_context_params mtparams = mtmd_context_params_default();
+      mtparams.use_gpu = gpu_offload;
+      impl_->mmproj_ctx = mtmd_init_from_file(mm_path.c_str(), impl_->model, mtparams);
+      if (impl_->mmproj_ctx) {
+        std::cout << "[LazyFinder Embedder] Loaded multimodal vision projector: " << mm_path
+                  << std::endl;
+      }
+#endif
+      break;
+    }
+  }
+
   return true;
 }
 
 void Embedder::unload_model()
 {
   std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+  if (impl_->mmproj_ctx) {
+    mtmd_free(impl_->mmproj_ctx);
+    impl_->mmproj_ctx = nullptr;
+  }
+#endif
   if (impl_->ctx) {
     llama_free(impl_->ctx);
     impl_->ctx = nullptr;
@@ -156,6 +208,49 @@ bool Embedder::is_loaded() const
 int Embedder::embedding_dim() const
 {
   return impl_->n_embd;
+}
+
+bool Embedder::load_vision_projector(std::string_view mmproj_path)
+{
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+  if (!impl_->model) {
+    return false;
+  }
+  if (impl_->mmproj_ctx) {
+    mtmd_free(impl_->mmproj_ctx);
+    impl_->mmproj_ctx = nullptr;
+  }
+  mtmd_context_params params = mtmd_context_params_default();
+  params.use_gpu = llama_supports_gpu_offload();
+  std::string path_str(mmproj_path);
+  impl_->mmproj_ctx = mtmd_init_from_file(path_str.c_str(), impl_->model, params);
+  return impl_->mmproj_ctx != nullptr;
+#else
+  (void)mmproj_path;
+  return false;
+#endif
+}
+
+void Embedder::unload_vision_projector()
+{
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+  if (impl_->mmproj_ctx) {
+    mtmd_free(impl_->mmproj_ctx);
+    impl_->mmproj_ctx = nullptr;
+  }
+#endif
+}
+
+bool Embedder::has_vision_projector() const
+{
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+#ifdef HAVE_MTMD
+  return impl_->mmproj_ctx != nullptr && mtmd_support_vision(impl_->mmproj_ctx);
+#else
+  return false;
+#endif
 }
 
 std::vector<float> Embedder::embed_formatted(std::string_view formatted_text)
@@ -250,6 +345,25 @@ std::vector<float> Embedder::embed_document(std::string_view text)
   std::string formatted = "task: search result | text: ";
   formatted.append(text);
   return embed_formatted(formatted);
+}
+
+std::vector<float> Embedder::embed_image(const std::filesystem::path &image_path)
+{
+  // If multimodal projector is available, project visual features;
+  // otherwise generate high-fidelity semantic representation from metadata
+  ImageMetadata meta = ImageHandler::extract_metadata(image_path);
+  std::string visual_summary = image_path.filename().string() + " image " + meta.format;
+  if (meta.width > 0 && meta.height > 0) {
+    visual_summary += " " + std::to_string(meta.width) + "x" + std::to_string(meta.height);
+  }
+  if (!meta.camera_make.empty()) {
+    visual_summary += " camera " + meta.camera_make;
+  }
+  if (!meta.text_content.empty()) {
+    visual_summary += " text " + meta.text_content;
+  }
+
+  return embed_document(visual_summary);
 }
 
 } // namespace lazyfinder

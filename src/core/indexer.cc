@@ -1,6 +1,6 @@
 #include "indexer.hh"
 
-#include "extractor.hh"
+#include "pipeline/registry.hh"
 
 #include <iostream>
 #include <sys/stat.h>
@@ -84,7 +84,8 @@ bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_
     return false;
   }
 
-  if (!Extractor::is_supported(path) || is_ignored(path)) {
+  auto *handler = HandlerRegistry::instance().find_handler(path);
+  if (!handler || is_ignored(path)) {
     return false;
   }
 
@@ -101,32 +102,44 @@ bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_
     return false;
   }
 
-  const auto chunks = Extractor::extract_chunks(path);
-  if (chunks.empty()) {
-    return false;
+  auto processed = handler->process(path);
+  if (processed.chunks.empty()) {
+    processed.chunks.push_back(ProcessedChunk{path.filename().string(), 0, {}});
+  }
+
+  std::vector<std::string> chunk_texts;
+  chunk_texts.reserve(processed.chunks.size());
+  for (const auto &chunk : processed.chunks) {
+    chunk_texts.push_back(chunk.text);
   }
 
   // Stage 1: Insert file record and text chunks immediately for instant lexical (FTS5) search
-  auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunks);
-  if (!chunk_ids.has_value() || chunk_ids->size() != chunks.size()) {
+  auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunk_texts);
+  if (!chunk_ids.has_value() || chunk_ids->size() != processed.chunks.size()) {
     return false;
   }
 
   if (chunk_cb) {
-    chunk_cb(path, 0, chunks.size());
+    chunk_cb(path, 0, processed.chunks.size());
   }
 
   // Stage 2: Generate vector embeddings for each chunk
-  for (size_t i = 0; i < chunks.size(); ++i) {
+  for (size_t i = 0; i < processed.chunks.size(); ++i) {
     if (cancel_token_ && cancel_token_->load()) {
       return true; // Preserved in lexical index; vector search can resume next sync
     }
-    auto emb = embedder_.embed_document(chunks[i]);
+    std::vector<float> emb;
+    if (!processed.chunks[i].custom_embedding.empty()) {
+      emb = processed.chunks[i].custom_embedding;
+    }
+    else {
+      emb = embedder_.embed_document(processed.chunks[i].text);
+    }
     if (!emb.empty()) {
       db_.insert_chunk_embedding((*chunk_ids)[i], emb);
     }
     if (chunk_cb) {
-      chunk_cb(path, i + 1, chunks.size());
+      chunk_cb(path, i + 1, processed.chunks.size());
     }
   }
 
@@ -176,7 +189,7 @@ IndexStats Indexer::index_all(ProgressCallback progress_cb, ChunkCallback chunk_
 
       stats.scanned++;
 
-      if (!Extractor::is_supported(entry.path()) || is_ignored(entry.path())) {
+      if (!HandlerRegistry::instance().is_supported(entry.path()) || is_ignored(entry.path())) {
         continue;
       }
 

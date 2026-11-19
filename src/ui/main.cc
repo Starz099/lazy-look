@@ -13,6 +13,7 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
+#include <iostream>
 #include <unistd.h>
 
 int main(int argc, char *argv[])
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
   QApplication app(argc, argv);
   app.setOrganizationName("LazyFinder");
   app.setApplicationName("LazyFinder");
+  app.setApplicationVersion("0.1.0");
   app.setDesktopFileName("lazyfinder");
   app.setWindowIcon(QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search")));
   app.setQuitOnLastWindowClosed(false);
@@ -34,14 +36,34 @@ int main(int argc, char *argv[])
   QCommandLineOption hideOption("hide", "Hide LazyFinder window.");
   QCommandLineOption quitOption("quit", "Quit the running LazyFinder daemon.");
   QCommandLineOption daemonOption("daemon", "Start in background daemon mode.");
+  QCommandLineOption enableAutostartOption("enable-autostart",
+                                           "Enable LazyFinder autostart on system login.");
+  QCommandLineOption disableAutostartOption("disable-autostart",
+                                            "Disable LazyFinder autostart on system login.");
 
   parser.addOption(toggleOption);
   parser.addOption(showOption);
   parser.addOption(hideOption);
   parser.addOption(quitOption);
   parser.addOption(daemonOption);
+  parser.addOption(enableAutostartOption);
+  parser.addOption(disableAutostartOption);
 
   parser.process(app);
+
+  if (parser.isSet(enableAutostartOption)) {
+    lazyfinder::Config::instance().load();
+    lazyfinder::Config::instance().set_launch_on_startup(true);
+    std::cout << "LazyFinder autostart on login enabled (~/.config/autostart/lazyfinder.desktop)."
+              << std::endl;
+    return 0;
+  }
+  if (parser.isSet(disableAutostartOption)) {
+    lazyfinder::Config::instance().load();
+    lazyfinder::Config::instance().set_launch_on_startup(false);
+    std::cout << "LazyFinder autostart on login disabled." << std::endl;
+    return 0;
+  }
 
   const QString serverName = "lazyfinder_ipc_" + QString::number(getuid());
 

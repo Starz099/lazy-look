@@ -5,11 +5,10 @@ LazyFinder is a local file search tool for Linux desktop environments. It allows
 ## Features
 
 - Hybrid search: Combines local vector embeddings (Gemma-2 embedding model accelerated via Vulkan) with SQLite full-text keyword indexing.
-- Deep file navigation:
-  - PDF: Extracts text page by page and opens files directly to matching pages in supported viewers (Papers, Evince, Okular).
-  - Presentations: Navigates directly to matching slides in LibreOffice.
-  - Video and Audio: Indexes embedded or companion subtitle tracks (.srt, .vtt) and opens files at the exact matching timestamp in VLC or mpv.
-  - Documents and Code: Supports .docx, .xlsx, .pptx, .odt, .ods, .odp, Markdown, plain text, and common programming languages.
+- Deep file navigation and format support:
+  - Documents and Code: Supports .pdf (opens directly to matching page in Papers, Evince, Okular), .pptx and .odp (opens to matching slide in LibreOffice), .docx, .xlsx, .odt, .ods, .epub, .rtf, HTML, Markdown, and common programming languages.
+  - Images and Vision: Indexes .png, .jpg, .jpeg, .webp, .bmp, .gif, .tiff, and .svg with dimension extraction, EXIF metadata (camera, dates), and vector embeddings.
+  - Video and Audio: Indexes .mp4, .mkv, .webm, .avi, .mov, .mp3, .wav, .flac, .ogg with companion or embedded subtitle tracks (.srt, .vtt), opening directly at the matching timestamp in VLC or mpv.
 - Background daemon: Runs as a single instance with low resource usage. The neural model automatically unloads from GPU VRAM and RAM after 5 minutes of inactivity.
 - Wayland-friendly global shortcut: Toggle the search window using Ctrl + Shift + Space. The shortcut is only registered with GNOME while LazyFinder is running, releasing the key combination when the application exits.
 
@@ -83,6 +82,19 @@ cd build && cpack -G DEB
 # Or build all three at once
 ./scripts/package_all.sh
 ```
+
+## Command-Line Usage
+
+| Option | Description |
+|---|---|
+| `lazyfinder` | Launch LazyFinder and show search bar |
+| `lazyfinder --daemon` | Start LazyFinder in background daemon mode |
+| `lazyfinder --toggle` | Toggle search bar visibility |
+| `lazyfinder --show` | Show and focus search bar |
+| `lazyfinder --hide` | Hide search bar |
+| `lazyfinder --quit` | Quit running LazyFinder process |
+| `lazyfinder --enable-autostart` | Enable background autostart on system login |
+| `lazyfinder --disable-autostart` | Disable autostart on system login |
 
 ## Keyboard Shortcuts
 

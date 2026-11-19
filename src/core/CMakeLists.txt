@@ -50,6 +50,10 @@ add_library(lazyfinder_core STATIC
   indexer.cc
   config.cc
   watcher.cc
+  pipeline/registry.cc
+  pipeline/document_handler.cc
+  pipeline/image_handler.cc
+  pipeline/media_handler.cc
 )
 
 target_compile_definitions(lazyfinder_core
@@ -66,6 +70,9 @@ endif()
 target_include_directories(lazyfinder_core
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE
+    ${llama_SOURCE_DIR}/vendor/stb
+    ${llama_SOURCE_DIR}/tools/mtmd
 )
 
 target_link_libraries(lazyfinder_core
@@ -75,3 +82,7 @@ target_link_libraries(lazyfinder_core
     PkgConfig::SQLITE3
 )
 
+if(TARGET mtmd)
+  target_link_libraries(lazyfinder_core PUBLIC mtmd)
+  target_compile_definitions(lazyfinder_core PUBLIC HAVE_MTMD)
+endif()
