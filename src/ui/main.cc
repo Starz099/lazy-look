@@ -20,6 +20,8 @@ int main(int argc, char *argv[])
   QApplication app(argc, argv);
   app.setOrganizationName("LazyFinder");
   app.setApplicationName("LazyFinder");
+  app.setDesktopFileName("lazyfinder");
+  app.setWindowIcon(QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search")));
   app.setQuitOnLastWindowClosed(false);
 
   QCommandLineParser parser;
@@ -132,7 +134,7 @@ int main(int argc, char *argv[])
 
   // Set up System Tray presence
   QSystemTrayIcon trayIcon;
-  QIcon searchIcon = QIcon::fromTheme("system-search");
+  QIcon searchIcon = QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search"));
   if (searchIcon.isNull()) {
     QPixmap pixmap(24, 24);
     pixmap.fill(Qt::transparent);

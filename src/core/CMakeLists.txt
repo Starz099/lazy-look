@@ -15,18 +15,22 @@ set(GGML_AVX2 ON CACHE BOOL "" FORCE)
 set(GGML_FMA ON CACHE BOOL "" FORCE)
 set(GGML_F16C ON CACHE BOOL "" FORCE)
 set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+set(LLAMA_INSTALL OFF CACHE BOOL "" FORCE)
+set(GGML_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
   llama
   GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
   GIT_TAG        v1.0.0
   GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
 )
 
 FetchContent_Declare(
   sqlite_vec
   URL https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/sqlite-vec-0.1.9-amalgamation.tar.gz
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  EXCLUDE_FROM_ALL
 )
 
 FetchContent_MakeAvailable(llama sqlite_vec)

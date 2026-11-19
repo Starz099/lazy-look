@@ -1,0 +1,22 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LazyFinder
+GenericName=Desktop Search
+Comment=Instant AI & Hybrid Desktop Search
+Exec=lazyfinder
+Icon=lazyfinder
+Terminal=false
+Categories=Utility;Filesystem;
+Keywords=search;spotlight;find;files;documents;ai;semantic;vector;
+StartupNotify=true
+StartupWMClass=LazyFinder
+Actions=Toggle;Preferences;
+
+[Desktop Action Toggle]
+Name=Toggle Search Bar
+Exec=lazyfinder --toggle
+
+[Desktop Action Preferences]
+Name=Preferences
+Exec=lazyfinder --show

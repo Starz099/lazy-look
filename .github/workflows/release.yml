@@ -1,0 +1,61 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ccache ninja-build \
+            qt6-base-dev qt6-declarative-dev qt6-tools-dev \
+            libvulkan-dev glslc libsqlite3-dev libpoppler-cpp-dev \
+            rpm dpkg-dev file libfuse2 imagemagick
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_VULKAN=ON
+
+      - name: Build LazyFinder
+        run: cmake --build build --target lazyfinder -j$(nproc)
+
+      - name: Run Test Suite
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package RPM and DEB
+        run: |
+          cd build
+          cpack -G RPM
+          cpack -G DEB
+
+      - name: Package AppImage
+        run: ./scripts/build_appimage.sh
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/lazyfinder-*-x86_64.rpm
+            build/lazyfinder-*-amd64.deb
+            build/lazyfinder-*-x86_64.AppImage
+          draft: false
+          prerelease: false
+          generate_release_notes: true
