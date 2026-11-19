@@ -6,7 +6,7 @@
 #include <iostream>
 #include <sys/stat.h>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -224,4 +224,4 @@ IndexStats Indexer::index_all(ProgressCallback progress_cb, ChunkCallback chunk_
   return stats;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

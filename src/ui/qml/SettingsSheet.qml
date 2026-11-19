@@ -722,7 +722,7 @@ Rectangle {
             Text {
               id: quitBtnText
               anchors.centerIn: parent
-              text: "Quit LazyFinder"
+              text: "Quit LazyLook"
               font.pixelSize: 11
               font.weight: Font.Medium
               color: quitMouse.containsMouse ? "#ffffff" : "#ef4444"

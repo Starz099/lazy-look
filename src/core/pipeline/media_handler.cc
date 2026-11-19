@@ -8,7 +8,7 @@
 #include <sstream>
 #include <unordered_set>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -220,15 +220,15 @@ std::filesystem::path MediaHandler::thumbnails_directory()
   std::filesystem::path dir;
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
-    dir = std::filesystem::path(xdg_data) / "lazyfinder" / "thumbnails";
+    dir = std::filesystem::path(xdg_data) / "lazylook" / "thumbnails";
   }
   else {
     const char *home = std::getenv("HOME");
     if (home && *home) {
-      dir = std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "thumbnails";
+      dir = std::filesystem::path(home) / ".local" / "share" / "lazylook" / "thumbnails";
     }
     else {
-      dir = std::filesystem::temp_directory_path() / "lazyfinder" / "thumbnails";
+      dir = std::filesystem::temp_directory_path() / "lazylook" / "thumbnails";
     }
   }
 
@@ -868,4 +868,4 @@ ProcessedFile MediaHandler::process(const std::filesystem::path &path)
   return result;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

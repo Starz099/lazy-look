@@ -12,7 +12,7 @@
 #include <poppler-page.h>
 #endif
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -777,4 +777,4 @@ std::vector<ProcessedChunk> DocumentHandler::extract_rtf(const std::filesystem::
   return to_chunks(cleaned, 0, max_chunks_per_file);
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

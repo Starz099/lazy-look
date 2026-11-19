@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class Watcher
@@ -29,4 +29,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

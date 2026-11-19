@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(lazyfinder
+project(lazylook
   VERSION 0.1.0
   LANGUAGES C CXX
 )
@@ -24,26 +24,26 @@ add_subdirectory(tests)
 
 include(GNUInstallDirs)
 
-install(TARGETS lazyfinder lazyfinderd
+install(TARGETS lazylook lazylookd
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/models/embeddinggemma-2-Q8_0.gguf")
   install(FILES "${CMAKE_SOURCE_DIR}/models/embeddinggemma-2-Q8_0.gguf"
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/lazyfinder/models
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/lazylook/models
   )
 endif()
 
-install(FILES resources/lazyfinder.desktop
+install(FILES resources/lazylook.desktop
   DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
-install(FILES resources/icons/lazyfinder.svg
+install(FILES resources/icons/lazylook.svg
   DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
 
-set(CPACK_PACKAGE_NAME "lazyfinder")
-set(CPACK_PACKAGE_VENDOR "LazyFinder")
+set(CPACK_PACKAGE_NAME "lazylook")
+set(CPACK_PACKAGE_VENDOR "LazyLook")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Instant AI & Hybrid Desktop Search for Linux")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_CONTACT "mayankjod016@gmail.com")
@@ -58,7 +58,7 @@ set(CPACK_RPM_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-x86_64.r
 
 # Debian / Ubuntu Settings (.deb)
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LazyFinder <mayankjod016@gmail.com>")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LazyLook <mayankjod016@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt6qml6, libqt6quick6, libqt6quickcontrols2-6, libqt6dbus6, libqt6network6, libvulkan1, libsqlite3-0")

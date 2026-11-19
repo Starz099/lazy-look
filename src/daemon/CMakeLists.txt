@@ -1,7 +1,7 @@
-add_executable(lazyfinderd
+add_executable(lazylookd
   main.cc
 )
 
-target_link_libraries(lazyfinderd
-  PRIVATE lazyfinder_core
+target_link_libraries(lazylookd
+  PRIVATE lazylook_core
 )

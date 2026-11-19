@@ -15,7 +15,7 @@
 #include <filesystem>
 #include <iostream>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -664,11 +664,10 @@ void SearchController::startModelDownload()
               }
               const double mbReceived = static_cast<double>(bytesReceived) / kBytesPerMegabyte;
               const double mbTotal = static_cast<double>(bytesTotal) / kBytesPerMegabyte;
-              model_download_status_ =
-                  QString("Downloading EmbeddingGemma-2: %1% (%2 MB / %3 MB)")
-                      .arg(pct)
-                      .arg(QString::number(mbReceived, 'f', 1))
-                      .arg(QString::number(mbTotal, 'f', 1));
+              model_download_status_ = QString("Downloading EmbeddingGemma-2: %1% (%2 MB / %3 MB)")
+                                           .arg(pct)
+                                           .arg(QString::number(mbReceived, 'f', 1))
+                                           .arg(QString::number(mbTotal, 'f', 1));
               emit modelDownloadStatusChanged();
             }
           });
@@ -754,4 +753,4 @@ void SearchController::cancelModelDownload()
   emit modelDownloadStatusChanged();
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

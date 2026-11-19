@@ -2,7 +2,7 @@
 #include "database.hh"
 #include "embedder.hh"
 #include "indexer.hh"
-#include "lazyfinder.hh"
+#include "lazylook.hh"
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,21 +22,21 @@ int main(int argc, char *argv[])
       return 1;
     }
 
-    const std::string model_path = lazyfinder::Config::resolve_model_path();
-    lazyfinder::Embedder embedder;
+    const std::string model_path = lazylook::Config::resolve_model_path();
+    lazylook::Embedder embedder;
     std::printf("Loading embedding model from %s...\n", model_path.c_str());
     if (!embedder.load_model(model_path)) {
       std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
       return 1;
     }
 
-    lazyfinder::Database db;
+    lazylook::Database db;
     if (!db.open()) {
       std::fprintf(stderr, "Failed to open database\n");
       return 1;
     }
 
-    lazyfinder::Indexer indexer(db, embedder);
+    lazylook::Indexer indexer(db, embedder);
     indexer.add_watched_directory(target_dir);
 
     std::printf("Indexing directory: %s\n", argv[2]);
@@ -59,14 +59,14 @@ int main(int argc, char *argv[])
   if (argc >= 3 && std::string_view(argv[1]) == "--search") {
     const std::string_view query_text = argv[2];
 
-    const std::string model_path = lazyfinder::Config::resolve_model_path();
-    lazyfinder::Embedder embedder;
+    const std::string model_path = lazylook::Config::resolve_model_path();
+    lazylook::Embedder embedder;
     if (!embedder.load_model(model_path)) {
       std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
       return 1;
     }
 
-    lazyfinder::Database db;
+    lazylook::Database db;
     if (!db.open()) {
       std::fprintf(stderr, "Failed to open database\n");
       return 1;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
   }
 
   if (argc >= 2 && std::string_view(argv[1]) == "--test-db") {
-    lazyfinder::Database db;
+    lazylook::Database db;
     if (!db.open(":memory:")) {
       std::fprintf(stderr, "Failed to open in-memory database\n");
       return 1;
@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
   }
 
   if (argc >= 2 && std::string_view(argv[1]) == "--test-embed") {
-    const std::string model_path = lazyfinder::Config::resolve_model_path();
-    lazyfinder::Embedder embedder;
+    const std::string model_path = lazylook::Config::resolve_model_path();
+    lazylook::Embedder embedder;
     std::printf("Loading embedding model...\n");
     if (!embedder.load_model(model_path)) {
       std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
@@ -150,12 +150,11 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  std::printf("lazyfinderd %.*s\n",
-              static_cast<int>(lazyfinder::version.size()),
-              lazyfinder::version.data());
+  std::printf(
+      "lazylookd %.*s\n", static_cast<int>(lazylook::version.size()), lazylook::version.data());
   std::printf("Usage:\n");
-  std::printf("  lazyfinderd --index <directory>   Index a directory\n");
-  std::printf("  lazyfinderd --search <query>      Search the index with natural language\n");
-  std::printf("  lazyfinderd --test-db             Run database unit test\n");
+  std::printf("  lazylookd --index <directory>   Index a directory\n");
+  std::printf("  lazylookd --search <query>      Search the index with natural language\n");
+  std::printf("  lazylookd --test-db             Run database unit test\n");
   return 0;
 }

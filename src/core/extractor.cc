@@ -4,7 +4,7 @@
 #include "pipeline/media_handler.hh"
 #include "pipeline/registry.hh"
 
-namespace lazyfinder
+namespace lazylook
 {
 
 bool Extractor::is_supported(const std::filesystem::path &path)
@@ -150,4 +150,4 @@ std::vector<std::string> Extractor::extract_media_file(const std::filesystem::pa
   return res;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

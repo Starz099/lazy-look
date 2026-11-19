@@ -6,7 +6,7 @@
 #include <QString>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct DisplayResult
@@ -58,4 +58,4 @@ private:
   QString current_filter_ = "all";
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

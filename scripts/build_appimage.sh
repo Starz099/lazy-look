@@ -5,11 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 APPDIR="${BUILD_DIR}/AppDir"
 
-echo "==> Preparing LazyFinder AppDir..."
+echo "==> Preparing LazyLook AppDir..."
 
-# Ensure lazyfinder is built
-if [[ ! -f "${BUILD_DIR}/src/ui/lazyfinder" ]]; then
-    cmake --build "${BUILD_DIR}" --target lazyfinder -j"$(nproc)"
+# Ensure lazylook is built
+if [[ ! -f "${BUILD_DIR}/src/ui/lazylook" ]]; then
+    cmake --build "${BUILD_DIR}" --target lazylook -j"$(nproc)"
 fi
 
 # Clean & create AppDir structure
@@ -18,28 +18,30 @@ mkdir -p "${APPDIR}/usr/bin"
 mkdir -p "${APPDIR}/usr/lib"
 mkdir -p "${APPDIR}/usr/share/applications"
 mkdir -p "${APPDIR}/usr/share/icons/hicolor/scalable/apps"
-mkdir -p "${APPDIR}/usr/share/lazyfinder/models"
+mkdir -p "${APPDIR}/usr/share/lazylook/models"
 
-cp "${BUILD_DIR}/src/ui/lazyfinder" "${APPDIR}/usr/bin/"
-if [[ -f "${BUILD_DIR}/src/daemon/lazyfinderd" ]]; then
-    cp "${BUILD_DIR}/src/daemon/lazyfinderd" "${APPDIR}/usr/bin/"
+cp "${BUILD_DIR}/src/ui/lazylook" "${APPDIR}/usr/bin/"
+if [[ -f "${BUILD_DIR}/src/daemon/lazylookd" ]]; then
+    cp "${BUILD_DIR}/src/daemon/lazylookd" "${APPDIR}/usr/bin/"
 fi
-cp "${ROOT_DIR}/resources/lazyfinder.desktop" "${APPDIR}/usr/share/applications/"
-cp "${ROOT_DIR}/resources/icons/lazyfinder.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/"
+cp "${ROOT_DIR}/resources/lazylook.desktop" "${APPDIR}/usr/share/applications/"
+cp "${ROOT_DIR}/resources/icons/lazylook.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/"
 
 # Bundle embedding model for zero-setup out of the box
 MODEL_CANDIDATES=(
     "${ROOT_DIR}/models/embeddinggemma-2-Q8_0.gguf"
     "${ROOT_DIR}/models/embeddinggemma-2-BF16.gguf"
     "${BUILD_DIR}/models/embeddinggemma-2-Q8_0.gguf"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/lazylook/models/embeddinggemma-2-Q8_0.gguf"
     "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/embeddinggemma-2-Q8_0.gguf"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/lazylook/models/embeddinggemma-2-BF16.gguf"
     "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/embeddinggemma-2-BF16.gguf"
 )
 BUNDLED=0
 for cand in "${MODEL_CANDIDATES[@]}"; do
     if [[ -f "${cand}" ]]; then
         echo "==> Bundling AI embedding model from: ${cand}"
-        cp "${cand}" "${APPDIR}/usr/share/lazyfinder/models/embeddinggemma-2-Q8_0.gguf"
+        cp "${cand}" "${APPDIR}/usr/share/lazylook/models/embeddinggemma-2-Q8_0.gguf"
         BUNDLED=1
         break
     fi
@@ -50,26 +52,26 @@ if [[ ${BUNDLED} -eq 0 ]]; then
 fi
 
 # Bundle companion vision projector if present
-for vcand in "${ROOT_DIR}/models/mmproj-embeddinggemma-2.gguf" "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/mmproj-embeddinggemma-2.gguf"; do
+for vcand in "${ROOT_DIR}/models/mmproj-embeddinggemma-2.gguf" "${XDG_DATA_HOME:-$HOME/.local/share}/lazylook/models/mmproj-embeddinggemma-2.gguf" "${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models/mmproj-embeddinggemma-2.gguf"; do
     if [[ -f "${vcand}" ]]; then
         echo "==> Bundling vision projector from: ${vcand}"
-        cp "${vcand}" "${APPDIR}/usr/share/lazyfinder/models/"
+        cp "${vcand}" "${APPDIR}/usr/share/lazylook/models/"
         break
     fi
 done
 
 # Top-level AppImage requirements
-cp "${ROOT_DIR}/resources/lazyfinder.desktop" "${APPDIR}/"
-cp "${ROOT_DIR}/resources/icons/lazyfinder.svg" "${APPDIR}/"
-if [[ -f "${ROOT_DIR}/resources/icons/lazyfinder.png" ]]; then
-    cp "${ROOT_DIR}/resources/icons/lazyfinder.png" "${APPDIR}/lazyfinder.png"
-    cp "${ROOT_DIR}/resources/icons/lazyfinder.png" "${APPDIR}/.DirIcon"
+cp "${ROOT_DIR}/resources/lazylook.desktop" "${APPDIR}/"
+cp "${ROOT_DIR}/resources/icons/lazylook.svg" "${APPDIR}/"
+if [[ -f "${ROOT_DIR}/resources/icons/lazylook.png" ]]; then
+    cp "${ROOT_DIR}/resources/icons/lazylook.png" "${APPDIR}/lazylook.png"
+    cp "${ROOT_DIR}/resources/icons/lazylook.png" "${APPDIR}/.DirIcon"
 elif command -v magick >/dev/null 2>&1; then
-    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
-    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/lazyfinder.png" 2>/dev/null || true
+    magick "${ROOT_DIR}/resources/icons/lazylook.svg" -background transparent -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
+    magick "${ROOT_DIR}/resources/icons/lazylook.svg" -background transparent -resize 256x256 "${APPDIR}/lazylook.png" 2>/dev/null || true
 elif command -v convert >/dev/null 2>&1; then
-    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
-    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/lazyfinder.png" 2>/dev/null || true
+    convert -background transparent "${ROOT_DIR}/resources/icons/lazylook.svg" -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
+    convert -background transparent "${ROOT_DIR}/resources/icons/lazylook.svg" -resize 256x256 "${APPDIR}/lazylook.png" 2>/dev/null || true
 fi
 
 # Create AppRun entrypoint
@@ -81,7 +83,7 @@ export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib64:${LD_LIBRARY_PATH}"
 export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 export QML_IMPORT_PATH="${HERE}/usr/qml:${QML_IMPORT_PATH}"
 export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH}"
-exec "${HERE}/usr/bin/lazyfinder" "$@"
+exec "${HERE}/usr/bin/lazylook" "$@"
 EOF
 chmod +x "${APPDIR}/AppRun"
 
@@ -92,9 +94,9 @@ if [[ -f "/tmp/linuxdeploy" && -f "/tmp/linuxdeploy-plugin-qt" ]]; then
     export QT_SELECT=6
     PATH="/tmp:${PATH}" /tmp/linuxdeploy --appimage-extract-and-run \
         --appdir="${APPDIR}" \
-        --executable="${APPDIR}/usr/bin/lazyfinder" \
-        --desktop-file="${APPDIR}/lazyfinder.desktop" \
-        --icon-file="${APPDIR}/lazyfinder.svg" \
+        --executable="${APPDIR}/usr/bin/lazylook" \
+        --desktop-file="${APPDIR}/lazylook.desktop" \
+        --icon-file="${APPDIR}/lazylook.svg" \
         --plugin=qt || true
 fi
 
@@ -108,6 +110,6 @@ fi
 
 # Package into final AppImage
 echo "==> Packaging AppImage..."
-ARCH=x86_64 "${TOOL_PATH}" --appimage-extract-and-run "${APPDIR}" "${BUILD_DIR}/lazyfinder-0.1.0-x86_64.AppImage"
+ARCH=x86_64 "${TOOL_PATH}" --appimage-extract-and-run "${APPDIR}" "${BUILD_DIR}/lazylook-0.1.0-x86_64.AppImage"
 
-echo "==> Done! AppImage generated at: ${BUILD_DIR}/lazyfinder-0.1.0-x86_64.AppImage"
+echo "==> Done! AppImage generated at: ${BUILD_DIR}/lazylook-0.1.0-x86_64.AppImage"

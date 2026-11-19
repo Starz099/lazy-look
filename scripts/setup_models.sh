@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# LazyFinder Model Setup Helper
+# LazyLook Model Setup Helper
 # Downloads and verifies local GGUF models for zero-setup AI semantic search.
 
-DEFAULT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/lazyfinder/models"
+DEFAULT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/lazylook/models"
 TARGET_DIR="${DEFAULT_DIR}"
 
 TEXT_MODEL="embeddinggemma-2-Q8_0.gguf"
@@ -25,7 +25,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Download and manage companion AI neural models for LazyFinder.
+Download and manage companion AI neural models for LazyLook.
 
 Options:
   --text         Download primary text embedding model (EmbeddingGemma-2 Q8_0, default)
@@ -84,7 +84,7 @@ done
 
 check_status() {
     echo "=========================================="
-    echo " LazyFinder Models Status"
+    echo " LazyLook Models Status"
     echo " Directory: ${TARGET_DIR}"
     echo "=========================================="
     if [[ ! -d "${TARGET_DIR}" ]]; then
@@ -163,4 +163,4 @@ fi
 
 echo ""
 check_status
-echo "Done. LazyFinder is ready for semantic search."
+echo "Done. LazyLook is ready for semantic search."

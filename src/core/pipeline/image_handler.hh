@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct ImageMetadata
@@ -38,4 +38,4 @@ public:
   static ImageMetadata extract_metadata(const std::filesystem::path &path);
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

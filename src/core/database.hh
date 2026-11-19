@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct FileRecord
@@ -112,4 +112,4 @@ private:
 
 std::string default_database_path();
 
-} // namespace lazyfinder
+} // namespace lazylook

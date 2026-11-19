@@ -42,8 +42,8 @@ target_compile_definitions(sqlite_vec PRIVATE SQLITE_CORE SQLITE_VEC_STATIC)
 target_include_directories(sqlite_vec PUBLIC ${sqlite_vec_SOURCE_DIR})
 target_link_libraries(sqlite_vec PUBLIC PkgConfig::SQLITE3 m)
 
-add_library(lazyfinder_core STATIC
-  lazyfinder.cc
+add_library(lazylook_core STATIC
+  lazylook.cc
   embedder.cc
   database.cc
   extractor.cc
@@ -56,18 +56,18 @@ add_library(lazyfinder_core STATIC
   pipeline/media_handler.cc
 )
 
-target_compile_definitions(lazyfinder_core
+target_compile_definitions(lazylook_core
   PUBLIC
     SQLITE_CORE
     SQLITE_VEC_STATIC
 )
 
 if(POPPLER_CPP_FOUND)
-  target_compile_definitions(lazyfinder_core PUBLIC HAVE_POPPLER)
-  target_link_libraries(lazyfinder_core PUBLIC PkgConfig::POPPLER_CPP)
+  target_compile_definitions(lazylook_core PUBLIC HAVE_POPPLER)
+  target_link_libraries(lazylook_core PUBLIC PkgConfig::POPPLER_CPP)
 endif()
 
-target_include_directories(lazyfinder_core
+target_include_directories(lazylook_core
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE
@@ -75,7 +75,7 @@ target_include_directories(lazyfinder_core
     ${llama_SOURCE_DIR}/tools/mtmd
 )
 
-target_link_libraries(lazyfinder_core
+target_link_libraries(lazylook_core
   PUBLIC
     llama
     sqlite_vec
@@ -83,6 +83,6 @@ target_link_libraries(lazyfinder_core
 )
 
 if(TARGET mtmd)
-  target_link_libraries(lazyfinder_core PUBLIC mtmd)
-  target_compile_definitions(lazyfinder_core PUBLIC HAVE_MTMD)
+  target_link_libraries(lazylook_core PUBLIC mtmd)
+  target_compile_definitions(lazylook_core PUBLIC HAVE_MTMD)
 endif()

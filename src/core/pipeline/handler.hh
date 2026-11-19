@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <string_view>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class IFileHandler
@@ -19,4 +19,4 @@ public:
   [[nodiscard]] virtual ProcessedFile process(const std::filesystem::path &path) = 0;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

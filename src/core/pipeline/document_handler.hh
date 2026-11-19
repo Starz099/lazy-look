@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class DocumentHandler : public IFileHandler
@@ -32,4 +32,4 @@ public:
   static std::vector<ProcessedChunk> extract_rtf(const std::filesystem::path &path);
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

@@ -19,14 +19,14 @@
 #include <memory>
 #include <thread>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class SearchController : public QObject
 {
   Q_OBJECT
 
-  Q_PROPERTY(lazyfinder::ResultsModel *resultsModel READ resultsModel CONSTANT)
+  Q_PROPERTY(lazylook::ResultsModel *resultsModel READ resultsModel CONSTANT)
   Q_PROPERTY(QString query READ query WRITE setQuery NOTIFY queryChanged)
   Q_PROPERTY(
       QString currentFilter READ currentFilter WRITE setCurrentFilter NOTIFY currentFilterChanged)
@@ -156,4 +156,4 @@ private:
   std::unique_ptr<QFile> download_file_;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class HandlerRegistry
@@ -31,4 +31,4 @@ private:
   std::vector<std::unique_ptr<IFileHandler>> handlers_;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

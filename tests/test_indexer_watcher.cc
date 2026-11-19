@@ -27,8 +27,8 @@ namespace
 
 std::filesystem::path create_temp_dir()
 {
-  auto dir = std::filesystem::temp_directory_path() /
-             ("lazyfinder_test_idx_" + std::to_string(std::rand()));
+  auto dir =
+      std::filesystem::temp_directory_path() / ("lazylook_test_idx_" + std::to_string(std::rand()));
   std::filesystem::create_directories(dir);
   return dir;
 }
@@ -43,9 +43,9 @@ void test_indexer_ignore_patterns()
 {
   std::cout << "[Test] Indexer Ignore Patterns & Filtering..." << std::endl;
 
-  lazyfinder::Database db;
-  lazyfinder::Embedder embedder;
-  lazyfinder::Indexer indexer(db, embedder);
+  lazylook::Database db;
+  lazylook::Embedder embedder;
+  lazylook::Indexer indexer(db, embedder);
 
   // Hidden folders and files
   TEST_ASSERT(indexer.is_ignored("/home/user/.git/config"), "Git directory must be ignored");
@@ -76,11 +76,11 @@ void test_indexer_crud_lifecycle()
   auto temp_dir = create_temp_dir();
   auto db_path = temp_dir / "test_indexer.db";
 
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database open must succeed");
 
-  lazyfinder::Embedder embedder;
-  lazyfinder::Indexer indexer(db, embedder);
+  lazylook::Embedder embedder;
+  lazylook::Indexer indexer(db, embedder);
 
   // Create sample markdown file
   auto doc_path = temp_dir / "architecture.md";
@@ -122,7 +122,7 @@ void test_watcher_lifecycle()
 
   auto watch_dir = create_temp_dir();
 
-  lazyfinder::Watcher watcher;
+  lazylook::Watcher watcher;
   TEST_ASSERT(!watcher.is_running(), "Watcher is initially stopped");
 
   std::mutex mtx;
@@ -172,7 +172,7 @@ void test_watcher_lifecycle()
 int main()
 {
   std::cout << "========================================" << std::endl;
-  std::cout << "LazyFinder Indexer & Watcher Tests      " << std::endl;
+  std::cout << "LazyLook Indexer & Watcher Tests        " << std::endl;
   std::cout << "========================================" << std::endl;
 
   test_indexer_ignore_patterns();

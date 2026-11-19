@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct Watcher::Impl
@@ -239,8 +239,8 @@ bool Watcher::start(const std::vector<std::string> &dirs, ChangeCallback callbac
   }
 
   impl_->worker_thread = std::thread([this]() { impl_->run(); });
-  std::cout << "[LazyFinder Watcher] Inotify file watcher active across "
-            << impl_->path_to_wd.size() << " directories." << std::endl;
+  std::cout << "[LazyLook Watcher] Inotify file watcher active across " << impl_->path_to_wd.size()
+            << " directories." << std::endl;
   return true;
 }
 
@@ -270,7 +270,7 @@ void Watcher::stop()
     close(impl_->stop_fd);
     impl_->stop_fd = -1;
   }
-  std::cout << "[LazyFinder Watcher] Inotify file watcher stopped." << std::endl;
+  std::cout << "[LazyLook Watcher] Inotify file watcher stopped." << std::endl;
 }
 
 void Watcher::update_directories(const std::vector<std::string> &dirs)
@@ -282,7 +282,7 @@ void Watcher::update_directories(const std::vector<std::string> &dirs)
   for (const auto &d : dirs) {
     impl_->add_watch_recursive(Config::expand_path(d));
   }
-  std::cout << "[LazyFinder Watcher] Updated watched paths: " << impl_->path_to_wd.size()
+  std::cout << "[LazyLook Watcher] Updated watched paths: " << impl_->path_to_wd.size()
             << " directories monitored." << std::endl;
 }
 
@@ -291,4 +291,4 @@ bool Watcher::is_running() const
   return impl_->running.load();
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

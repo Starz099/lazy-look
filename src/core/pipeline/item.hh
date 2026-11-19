@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 enum class FileCategory
@@ -30,4 +30,4 @@ struct ProcessedFile
   std::vector<ProcessedChunk> chunks;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

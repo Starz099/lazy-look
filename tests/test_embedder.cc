@@ -38,7 +38,7 @@ float vector_norm(const std::vector<float> &v)
 void test_uninitialized_state()
 {
   std::cout << "[Test] Embedder Uninitialized State..." << std::endl;
-  lazyfinder::Embedder embedder;
+  lazylook::Embedder embedder;
 
   TEST_ASSERT(!embedder.is_loaded(), "Uninitialized embedder is not loaded");
   TEST_ASSERT(embedder.embedding_dim() == 0, "Uninitialized embedder dim is 0");
@@ -56,14 +56,14 @@ void test_model_loading_and_inference()
 {
   std::cout << "[Test] Embedder Model Loading and L2 Normalization..." << std::endl;
 
-  std::string model_path = lazyfinder::Config::resolve_model_path();
+  std::string model_path = lazylook::Config::resolve_model_path();
   if (model_path.empty() || !std::filesystem::exists(model_path)) {
     std::cout << "  (Skipping live model test: model weights not found at resolved path)"
               << std::endl;
     return;
   }
 
-  lazyfinder::Embedder embedder;
+  lazylook::Embedder embedder;
   bool loaded = embedder.load_model(model_path);
   TEST_ASSERT(loaded, "Failed to load model from resolved path");
   TEST_ASSERT(embedder.is_loaded(), "Embedder reports loaded state");
@@ -120,7 +120,7 @@ void test_model_loading_and_inference()
 int main()
 {
   std::cout << "========================================" << std::endl;
-  std::cout << "LazyFinder Embedder & Vector Math Tests " << std::endl;
+  std::cout << "LazyLook Embedder & Vector Math Tests   " << std::endl;
   std::cout << "========================================" << std::endl;
 
   test_uninitialized_state();

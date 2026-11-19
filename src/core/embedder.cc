@@ -17,7 +17,7 @@
 #include "mtmd.h"
 #endif
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -126,7 +126,7 @@ bool Embedder::load_model(std::string_view model_path)
   }
 
   const bool gpu_offload = llama_supports_gpu_offload();
-  std::cout << "[LazyFinder Embedder] Loaded model: " << path_str
+  std::cout << "[LazyLook Embedder] Loaded model: " << path_str
             << " (acceleration: " << (gpu_offload ? "Vulkan GPU offload" : "CPU")
             << ", layers: " << mparams.n_gpu_layers << ")\n";
 
@@ -183,7 +183,7 @@ bool Embedder::load_model(std::string_view model_path)
         mtparams.use_gpu = gpu_offload;
         impl_->mmproj_ctx = mtmd_init_from_file(mm_path.c_str(), impl_->model, mtparams);
         if (impl_->mmproj_ctx) {
-          std::cout << "[LazyFinder Embedder] Loaded multimodal vision projector: " << mm_path
+          std::cout << "[LazyLook Embedder] Loaded multimodal vision projector: " << mm_path
                     << std::endl;
           projector_found = true;
           break;
@@ -215,7 +215,7 @@ void Embedder::unload_model()
   }
   impl_->vocab = nullptr;
   impl_->n_embd = 0;
-  std::cout << "[LazyFinder Embedder] Model unloaded (auto-sleep / VRAM freed)" << std::endl;
+  std::cout << "[LazyLook Embedder] Model unloaded (auto-sleep / VRAM freed)" << std::endl;
 }
 
 bool Embedder::is_loaded() const
@@ -384,4 +384,4 @@ std::vector<float> Embedder::embed_image(const std::filesystem::path &image_path
   return embed_document(visual_summary);
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

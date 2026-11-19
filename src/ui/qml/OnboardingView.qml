@@ -17,7 +17,7 @@ Item {
 
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
-        text: "Welcome to LazyFinder"
+        text: "Welcome to LazyLook"
         font.pixelSize: 18
         font.weight: Font.DemiBold
         color: "#f5f5f5"

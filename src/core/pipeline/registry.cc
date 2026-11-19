@@ -4,7 +4,7 @@
 #include "pipeline/image_handler.hh"
 #include "pipeline/media_handler.hh"
 
-namespace lazyfinder
+namespace lazylook
 {
 
 HandlerRegistry::HandlerRegistry()
@@ -56,4 +56,4 @@ HandlerRegistry &HandlerRegistry::instance()
   return reg;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

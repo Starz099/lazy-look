@@ -22,7 +22,7 @@ namespace
 std::filesystem::path temp_db_path()
 {
   return std::filesystem::temp_directory_path() /
-         ("lazyfinder_db_test_" + std::to_string(std::rand()) + ".db");
+         ("lazylook_db_test_" + std::to_string(std::rand()) + ".db");
 }
 
 std::vector<float> make_dummy_vector(size_t dim, float seed)
@@ -41,7 +41,7 @@ void test_database_crud()
   std::cout << "[Test] Database CRUD and Stage 1/2 Ingestion..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
 
   TEST_ASSERT(db.open(db_path.string()), "Database open and init schema");
   TEST_ASSERT(db.is_open(), "Database is marked open");
@@ -104,7 +104,7 @@ void test_directory_removal_and_dedup()
   std::cout << "[Test] Directory removal and result deduplication..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
   // Insert files across directories
@@ -153,7 +153,7 @@ void test_query_intelligence_and_prefix()
   std::cout << "[Test] Query intelligence, camelCase and prefix search..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
   // Insert files with code identifiers and camelCase
@@ -197,7 +197,7 @@ void test_contextual_snippets_and_pages()
   std::cout << "[Test] Contextual windowed snippets and page/slide numbers..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
   // Multi-page document records
@@ -260,7 +260,7 @@ void test_utf8_snippet_cleanliness()
   std::cout << "[Test] UTF-8 character preservation & mojibake prevention..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database opened");
 
   const std::string doc_path = "/docs/CV_Mayank.pdf";
@@ -291,11 +291,11 @@ void test_video_chunks_and_thumbnails()
   std::cout << "[Test] Video chunks, timecodes, and thumbnail metadata..." << std::endl;
 
   const auto db_path = temp_db_path();
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path.string()), "Database open");
 
   const std::string video_path = "/videos/screencast_demo.mp4";
-  const std::vector<lazyfinder::ChunkRecord> chunks = {
+  const std::vector<lazylook::ChunkRecord> chunks = {
       {"screencast_demo.mp4\n[00:15] Introduction to Vulkan compute pipelines",
        15,
        "/thumbs/video_15.jpg"},
@@ -329,64 +329,58 @@ void test_query_category_prefixes()
   std::cout << "[Test] Query Category Prefixes and Category Filtering..." << std::endl;
 
   // Prefix parsing verification
-  auto q1 = lazyfinder::Database::parse_query_category("code: calculate_hash");
-  TEST_ASSERT(q1.category == lazyfinder::QueryCategory::Code, "Parsed 'code:' as Code");
+  auto q1 = lazylook::Database::parse_query_category("code: calculate_hash");
+  TEST_ASSERT(q1.category == lazylook::QueryCategory::Code, "Parsed 'code:' as Code");
   TEST_ASSERT(q1.text == "calculate_hash", "Extracted clean text 'calculate_hash'");
 
-  auto q2 = lazyfinder::Database::parse_query_category("type:code fn main");
-  TEST_ASSERT(q2.category == lazyfinder::QueryCategory::Code, "Parsed 'type:code' as Code");
+  auto q2 = lazylook::Database::parse_query_category("type:code fn main");
+  TEST_ASSERT(q2.category == lazylook::QueryCategory::Code, "Parsed 'type:code' as Code");
   TEST_ASSERT(q2.text == "fn main", "Extracted clean text 'fn main'");
 
-  auto q3 = lazyfinder::Database::parse_query_category("doc: annual report");
-  TEST_ASSERT(q3.category == lazyfinder::QueryCategory::Document, "Parsed 'doc:' as Document");
+  auto q3 = lazylook::Database::parse_query_category("doc: annual report");
+  TEST_ASSERT(q3.category == lazylook::QueryCategory::Document, "Parsed 'doc:' as Document");
   TEST_ASSERT(q3.text == "annual report", "Extracted clean text 'annual report'");
 
-  auto q4 = lazyfinder::Database::parse_query_category("pdf: quarterly results");
-  TEST_ASSERT(q4.category == lazyfinder::QueryCategory::Document, "Parsed 'pdf:' as Document");
+  auto q4 = lazylook::Database::parse_query_category("pdf: quarterly results");
+  TEST_ASSERT(q4.category == lazylook::QueryCategory::Document, "Parsed 'pdf:' as Document");
   TEST_ASSERT(q4.text == "quarterly results", "Extracted clean text 'quarterly results'");
 
-  auto q5 = lazyfinder::Database::parse_query_category("image: screenshot");
-  TEST_ASSERT(q5.category == lazyfinder::QueryCategory::Image, "Parsed 'image:' as Image");
+  auto q5 = lazylook::Database::parse_query_category("image: screenshot");
+  TEST_ASSERT(q5.category == lazylook::QueryCategory::Image, "Parsed 'image:' as Image");
   TEST_ASSERT(q5.text == "screenshot", "Extracted clean text 'screenshot'");
 
-  auto q6 = lazyfinder::Database::parse_query_category("video: conference");
-  TEST_ASSERT(q6.category == lazyfinder::QueryCategory::Video, "Parsed 'video:' as Video");
+  auto q6 = lazylook::Database::parse_query_category("video: conference");
+  TEST_ASSERT(q6.category == lazylook::QueryCategory::Video, "Parsed 'video:' as Video");
   TEST_ASSERT(q6.text == "conference", "Extracted clean text 'conference'");
 
-  auto q7 = lazyfinder::Database::parse_query_category("audio: podcast");
-  TEST_ASSERT(q7.category == lazyfinder::QueryCategory::Audio, "Parsed 'audio:' as Audio");
+  auto q7 = lazylook::Database::parse_query_category("audio: podcast");
+  TEST_ASSERT(q7.category == lazylook::QueryCategory::Audio, "Parsed 'audio:' as Audio");
   TEST_ASSERT(q7.text == "podcast", "Extracted clean text 'podcast'");
 
-  auto q8 = lazyfinder::Database::parse_query_category("regular search text");
-  TEST_ASSERT(q8.category == lazyfinder::QueryCategory::All, "Regular text parsed as All");
+  auto q8 = lazylook::Database::parse_query_category("regular search text");
+  TEST_ASSERT(q8.category == lazylook::QueryCategory::All, "Regular text parsed as All");
   TEST_ASSERT(q8.text == "regular search text", "Clean text preserved");
 
   // Path matching verification
+  TEST_ASSERT(lazylook::Database::path_matches_category("main.rs", lazylook::QueryCategory::Code),
+              "main.rs is Code");
+  TEST_ASSERT(!lazylook::Database::path_matches_category("main.rs", lazylook::QueryCategory::Image),
+              "main.rs is NOT Image");
   TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("main.rs", lazyfinder::QueryCategory::Code),
-      "main.rs is Code");
-  TEST_ASSERT(
-      !lazyfinder::Database::path_matches_category("main.rs", lazyfinder::QueryCategory::Image),
-      "main.rs is NOT Image");
-  TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("doc.pdf", lazyfinder::QueryCategory::Document),
+      lazylook::Database::path_matches_category("doc.pdf", lazylook::QueryCategory::Document),
       "doc.pdf is Document");
-  TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("pic.png", lazyfinder::QueryCategory::Image),
-      "pic.png is Image");
-  TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("vid.mp4", lazyfinder::QueryCategory::Video),
-      "vid.mp4 is Video");
-  TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("song.mp3", lazyfinder::QueryCategory::Audio),
-      "song.mp3 is Audio");
-  TEST_ASSERT(
-      lazyfinder::Database::path_matches_category("song.mp3", lazyfinder::QueryCategory::Media),
-      "song.mp3 is Media");
+  TEST_ASSERT(lazylook::Database::path_matches_category("pic.png", lazylook::QueryCategory::Image),
+              "pic.png is Image");
+  TEST_ASSERT(lazylook::Database::path_matches_category("vid.mp4", lazylook::QueryCategory::Video),
+              "vid.mp4 is Video");
+  TEST_ASSERT(lazylook::Database::path_matches_category("song.mp3", lazylook::QueryCategory::Audio),
+              "song.mp3 is Audio");
+  TEST_ASSERT(lazylook::Database::path_matches_category("song.mp3", lazylook::QueryCategory::Media),
+              "song.mp3 is Media");
 
   // Category filtered hybrid search verification
   const std::string db_path = "/tmp/test_cat_prefix_" + std::to_string(std::rand()) + ".db";
-  lazyfinder::Database db;
+  lazylook::Database db;
   TEST_ASSERT(db.open(db_path), "Database opened");
 
   db.insert_file_chunks("src/math.cpp", 100, 1000, {"int compute_value() { return 42; }"});
@@ -433,7 +427,7 @@ void test_query_category_prefixes()
 int main()
 {
   std::cout << "========================================" << std::endl;
-  std::cout << "LazyFinder Database & Ingestion Tests   " << std::endl;
+  std::cout << "LazyLook Database & Ingestion Tests     " << std::endl;
   std::cout << "========================================" << std::endl;
 
   test_database_crud();

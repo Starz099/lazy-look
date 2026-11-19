@@ -13,7 +13,7 @@
 #include <QUrl>
 #include <iostream>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -83,9 +83,7 @@ bool launch_media(const QString &path, int seconds)
   if (try_launch("vlc", {"--start-time", sec_str, path})) {
     return true;
   }
-  if (try_launch(
-          "totem",
-          {"--seek", QString::number(static_cast<qint64>(seconds) * 1000), path})) {
+  if (try_launch("totem", {"--seek", QString::number(static_cast<qint64>(seconds) * 1000), path})) {
     return true;
   }
   if (try_launch("celluloid", {"--start=" + sec_str, path})) {
@@ -119,7 +117,7 @@ bool DesktopLauncher::open_file(const QString &path, int page_or_timestamp)
     return false;
   }
 
-  std::cout << "[LazyFinder] Opening file: " << path.toStdString()
+  std::cout << "[LazyLook] Opening file: " << path.toStdString()
             << " (offset: " << page_or_timestamp << ")" << std::endl;
 
   const QString lower = path.toLower();
@@ -171,7 +169,7 @@ bool DesktopLauncher::open_file(const QString &path, int page_or_timestamp)
   }
 
   const bool success = launch_desktop_fallback(target_path);
-  std::cout << "[LazyFinder] Open file: " << target_path.toStdString() << " ("
+  std::cout << "[LazyLook] Open file: " << target_path.toStdString() << " ("
             << (success ? "success" : "failed") << ")" << std::endl;
   return success;
 }
@@ -215,4 +213,4 @@ void DesktopLauncher::copy_path(const QString &path)
   }
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

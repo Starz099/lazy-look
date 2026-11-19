@@ -6,7 +6,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -55,15 +55,28 @@ std::string Config::config_file_path() const
 {
   const char *xdg_config = std::getenv("XDG_CONFIG_HOME");
   if (xdg_config && *xdg_config) {
-    return (std::filesystem::path(xdg_config) / "lazyfinder" / "config.toml").string();
+    const auto look_path = std::filesystem::path(xdg_config) / "lazylook" / "config.toml";
+    const auto finder_path = std::filesystem::path(xdg_config) / "lazyfinder" / "config.toml";
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
 
   const std::string home = get_default_home();
   if (!home.empty()) {
-    return (std::filesystem::path(home) / ".config" / "lazyfinder" / "config.toml").string();
+    const auto look_path = std::filesystem::path(home) / ".config" / "lazylook" / "config.toml";
+    const auto finder_path = std::filesystem::path(home) / ".config" / "lazyfinder" / "config.toml";
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
 
-  return "lazyfinder.toml";
+  if (!std::filesystem::exists("lazylook.toml") && std::filesystem::exists("lazyfinder.toml")) {
+    return "lazyfinder.toml";
+  }
+  return "lazylook.toml";
 }
 
 std::string Config::expand_path(std::string_view path)
@@ -106,7 +119,10 @@ std::vector<std::filesystem::path> Config::model_search_directories()
   std::error_code ec;
 
   // Environment variable override
-  const char *env_dir = std::getenv("LAZYFINDER_MODELS_DIR");
+  const char *env_dir = std::getenv("LAZYLOOK_MODELS_DIR");
+  if (!env_dir || !*env_dir) {
+    env_dir = std::getenv("LAZYFINDER_MODELS_DIR");
+  }
   if (env_dir && *env_dir) {
     dirs.emplace_back(env_dir);
   }
@@ -116,6 +132,7 @@ std::vector<std::filesystem::path> Config::model_search_directories()
     const auto exe_path = std::filesystem::canonical("/proc/self/exe", ec);
     if (!ec && !exe_path.empty()) {
       const auto exe_dir = exe_path.parent_path();
+      dirs.push_back(exe_dir.parent_path() / "share" / "lazylook" / "models");
       dirs.push_back(exe_dir.parent_path() / "share" / "lazyfinder" / "models");
       dirs.push_back(exe_dir / "models");
     }
@@ -124,17 +141,21 @@ std::vector<std::filesystem::path> Config::model_search_directories()
   // User XDG data directory
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
+    dirs.push_back(std::filesystem::path(xdg_data) / "lazylook" / "models");
     dirs.push_back(std::filesystem::path(xdg_data) / "lazyfinder" / "models");
   }
   else {
     const std::string home = get_default_home();
     if (!home.empty()) {
+      dirs.push_back(std::filesystem::path(home) / ".local" / "share" / "lazylook" / "models");
       dirs.push_back(std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models");
     }
   }
 
   // System-wide directories
+  dirs.emplace_back("/usr/share/lazylook/models");
   dirs.emplace_back("/usr/share/lazyfinder/models");
+  dirs.emplace_back("/usr/local/share/lazylook/models");
   dirs.emplace_back("/usr/local/share/lazyfinder/models");
 
   // Working directory fallbacks
@@ -149,12 +170,23 @@ std::string Config::default_user_model_path(std::string_view filename)
   const std::string fname = filename.empty() ? "embeddinggemma-2-Q8_0.gguf" : std::string(filename);
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
-    return (std::filesystem::path(xdg_data) / "lazyfinder" / "models" / fname).string();
+    const auto look_path = std::filesystem::path(xdg_data) / "lazylook" / "models" / fname;
+    const auto finder_path = std::filesystem::path(xdg_data) / "lazyfinder" / "models" / fname;
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
   const std::string home = get_default_home();
   if (!home.empty()) {
-    return (std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models" / fname)
-        .string();
+    const auto look_path =
+        std::filesystem::path(home) / ".local" / "share" / "lazylook" / "models" / fname;
+    const auto finder_path =
+        std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models" / fname;
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
   return fname;
 }
@@ -350,7 +382,7 @@ bool Config::save() const
     return false;
   }
 
-  file << "# LazyFinder Configuration\n\n";
+  file << "# LazyLook Configuration\n\n";
   file << "[indexer]\n";
   file << "watched_directories = [\n";
   for (size_t i = 0; i < watched_dirs_.size(); ++i) {
@@ -480,6 +512,8 @@ bool Config::register_gnome_shortcut(std::string_view shortcut)
   }
 
   const std::string path =
+      "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazylook/";
+  const std::string legacy_path =
       "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazyfinder/";
 
   std::string cmd =
@@ -488,24 +522,29 @@ bool Config::register_gnome_shortcut(std::string_view shortcut)
       "path = '" +
       path +
       "'\n"
+      "legacy_path = '" +
+      legacy_path +
+      "'\n"
       "cur = subprocess.run(['gsettings', 'get', 'org.gnome.settings-daemon.plugins.media-keys', "
       "'custom-keybindings'], capture_output=True, text=True).stdout.strip()\n"
       "try:\n"
       "    items = eval(cur) if cur.startswith('[') else []\n"
       "except:\n"
       "    items = []\n"
+      "if legacy_path in items:\n"
+      "    items.remove(legacy_path)\n"
       "if path not in items:\n"
       "    items.append(path)\n"
-      "    s_list = '[' + ', '.join(f'\\'{x}\\' ' for x in items) + ']'\n"
-      "    subprocess.run(['gsettings', 'set', 'org.gnome.settings-daemon.plugins.media-keys', "
+      "s_list = '[' + ', '.join(f'\\'{x}\\' ' for x in items) + ']'\n"
+      "subprocess.run(['gsettings', 'set', 'org.gnome.settings-daemon.plugins.media-keys', "
       "'custom-keybindings', s_list])\n"
       "subprocess.run(['gsettings', 'set', "
       "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'name', "
-      "'LazyFinder'])\n"
+      "'LazyLook'])\n"
       "subprocess.run(['gsettings', 'set', "
       "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'command', "
       "'sh -c \\\"PATH=\\$HOME/.local/bin:\\$HOME/.cargo/bin:/usr/local/bin:/usr/bin:\\$PATH exec "
-      "lazyfinder --toggle\\\"'])\n"
+      "lazylook --toggle\\\"'])\n"
       "subprocess.run(['gsettings', 'set', "
       "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'binding', '" +
       sc +
@@ -523,6 +562,8 @@ bool Config::unregister_gnome_shortcut()
   }
 
   const std::string path =
+      "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazylook/";
+  const std::string legacy_path =
       "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazyfinder/";
 
   std::string cmd =
@@ -531,19 +572,30 @@ bool Config::unregister_gnome_shortcut()
       "path = '" +
       path +
       "'\n"
+      "legacy_path = '" +
+      legacy_path +
+      "'\n"
       "cur = subprocess.run(['gsettings', 'get', 'org.gnome.settings-daemon.plugins.media-keys', "
       "'custom-keybindings'], capture_output=True, text=True).stdout.strip()\n"
       "try:\n"
       "    items = eval(cur) if cur.startswith('[') else []\n"
       "except:\n"
       "    items = []\n"
+      "updated = False\n"
       "if path in items:\n"
       "    items.remove(path)\n"
+      "    updated = True\n"
+      "if legacy_path in items:\n"
+      "    items.remove(legacy_path)\n"
+      "    updated = True\n"
+      "if updated:\n"
       "    s_list = '[' + ', '.join(f'\\'{x}\\' ' for x in items) + ']'\n"
       "    subprocess.run(['gsettings', 'set', 'org.gnome.settings-daemon.plugins.media-keys', "
       "'custom-keybindings', s_list])\n"
       "subprocess.run(['gsettings', 'reset-recursively', "
       "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}'])\n"
+      "subprocess.run(['gsettings', 'reset-recursively', "
+      "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{legacy_path}'])\n"
       "\" >/dev/null 2>&1";
 
   int ret = std::system(cmd.c_str());
@@ -557,9 +609,12 @@ bool Config::set_autostart_desktop_file(bool enabled)
     return false;
   }
   const auto autostart_dir = std::filesystem::path(home) / ".config" / "autostart";
-  const auto desktop_path = autostart_dir / "lazyfinder.desktop";
+  const auto desktop_path = autostart_dir / "lazylook.desktop";
+  const auto legacy_desktop_path = autostart_dir / "lazyfinder.desktop";
 
   std::error_code ec;
+  std::filesystem::remove(legacy_desktop_path, ec);
+
   if (!enabled) {
     std::filesystem::remove(desktop_path, ec);
     return true;
@@ -573,12 +628,12 @@ bool Config::set_autostart_desktop_file(bool enabled)
   file << "[Desktop Entry]\n"
        << "Version=1.0\n"
        << "Type=Application\n"
-       << "Name=LazyFinder\n"
+       << "Name=LazyLook\n"
        << "GenericName=Desktop Search\n"
        << "Comment=Instant AI & Hybrid Desktop Search\n"
        << "Exec=sh -c \"PATH=$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:$PATH exec "
-          "lazyfinder --daemon\"\n"
-       << "Icon=lazyfinder\n"
+          "lazylook --daemon\"\n"
+       << "Icon=lazylook\n"
        << "Terminal=false\n"
        << "Categories=Utility;Filesystem;\n"
        << "Hidden=false\n"
@@ -587,4 +642,4 @@ bool Config::set_autostart_desktop_file(bool enabled)
   return true;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

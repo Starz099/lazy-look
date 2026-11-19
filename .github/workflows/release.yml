@@ -33,8 +33,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DGGML_VULKAN=ON
 
-      - name: Build LazyFinder
-        run: cmake --build build --target lazyfinder -j$(nproc)
+      - name: Build LazyLook
+        run: cmake --build build --target lazylook -j$(nproc)
 
       - name: Run Test Suite
         run: ctest --test-dir build --output-on-failure
@@ -53,9 +53,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            build/lazyfinder-*-x86_64.rpm
-            build/lazyfinder-*-amd64.deb
-            build/lazyfinder-*-x86_64.AppImage
+            build/lazylook-*-x86_64.rpm
+            build/lazylook-*-amd64.deb
+            build/lazylook-*-x86_64.AppImage
           draft: false
           prerelease: false
           generate_release_notes: true

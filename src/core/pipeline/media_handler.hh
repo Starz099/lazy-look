@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct MediaCue
@@ -70,4 +70,4 @@ public:
   static std::string format_timecode(int seconds);
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

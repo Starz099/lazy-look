@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class Config
@@ -61,4 +61,4 @@ private:
   bool memory_saver_ = true;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

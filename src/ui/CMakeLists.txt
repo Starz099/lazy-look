@@ -6,7 +6,7 @@ find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 Widgets DBus Netwo
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
 
-qt_add_executable(lazyfinder
+qt_add_executable(lazylook
   main.cc
   desktop_launcher.cc
   desktop_launcher.hh
@@ -16,8 +16,8 @@ qt_add_executable(lazyfinder
   results_model.hh
 )
 
-qt_add_qml_module(lazyfinder
-  URI LazyFinder
+qt_add_qml_module(lazylook
+  URI LazyLook
   VERSION 1.0
   QML_FILES
     qml/Main.qml
@@ -30,9 +30,9 @@ qt_add_qml_module(lazyfinder
     qml/Icon.qml
 )
 
-target_link_libraries(lazyfinder
+target_link_libraries(lazylook
   PRIVATE
-    lazyfinder_core
+    lazylook_core
     Qt6::Core
     Qt6::Gui
     Qt6::Qml

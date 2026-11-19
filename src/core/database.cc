@@ -15,7 +15,7 @@ extern "C" {
 #include "sqlite-vec.h"
 }
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -217,8 +217,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
       int secs = page_number;
       char buf[32];
       if (secs >= 3600) {
-        snprintf(
-            buf, sizeof(buf), "%02d:%02d:%02d • ", secs / 3600, (secs % 3600) / 60, secs % 60);
+        snprintf(buf, sizeof(buf), "%02d:%02d:%02d • ", secs / 3600, (secs % 3600) / 60, secs % 60);
       }
       else {
         snprintf(buf, sizeof(buf), "%02d:%02d • ", secs / 60, secs % 60);
@@ -452,12 +451,24 @@ std::string default_database_path()
 {
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
-    return (std::filesystem::path(xdg_data) / "lazyfinder" / "index.db").string();
+    const auto look_path = std::filesystem::path(xdg_data) / "lazylook" / "index.db";
+    const auto finder_path = std::filesystem::path(xdg_data) / "lazyfinder" / "index.db";
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
 
   const char *home = std::getenv("HOME");
   if (home && *home) {
-    return (std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "index.db").string();
+    const auto look_path =
+        std::filesystem::path(home) / ".local" / "share" / "lazylook" / "index.db";
+    const auto finder_path =
+        std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "index.db";
+    if (!std::filesystem::exists(look_path) && std::filesystem::exists(finder_path)) {
+      return finder_path.string();
+    }
+    return look_path.string();
   }
 
   return "index.db";
@@ -1154,4 +1165,4 @@ int64_t Database::total_chunks()
   return count;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

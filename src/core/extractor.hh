@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class Extractor
@@ -27,4 +27,4 @@ public:
   static std::vector<std::string> extract_media_file(const std::filesystem::path &path);
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

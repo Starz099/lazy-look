@@ -2,7 +2,7 @@
 
 #include <QString>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class DesktopLauncher
@@ -13,4 +13,4 @@ public:
   static void copy_path(const QString &path);
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

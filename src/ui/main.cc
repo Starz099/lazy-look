@@ -32,27 +32,27 @@ int main(int argc, char *argv[])
   QLoggingCategory::setFilterRules("qt.qpa.services.warning=false\nqt.core.qobject.connect=false");
 
   QApplication app(argc, argv);
-  app.setOrganizationName("LazyFinder");
-  app.setApplicationName("LazyFinder");
+  app.setOrganizationName("LazyLook");
+  app.setApplicationName("LazyLook");
   app.setApplicationVersion("0.1.0");
-  app.setDesktopFileName("lazyfinder");
-  app.setWindowIcon(QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search")));
+  app.setDesktopFileName("lazylook");
+  app.setWindowIcon(QIcon::fromTheme("lazylook", QIcon::fromTheme("system-search")));
   app.setQuitOnLastWindowClosed(false);
 
   QCommandLineParser parser;
-  parser.setApplicationDescription("LazyFinder - Instant AI Desktop Search");
+  parser.setApplicationDescription("LazyLook - Instant AI Desktop Search");
   parser.addHelpOption();
   parser.addVersionOption();
 
-  QCommandLineOption toggleOption("toggle", "Toggle LazyFinder window visibility.");
-  QCommandLineOption showOption("show", "Show and focus LazyFinder window.");
-  QCommandLineOption hideOption("hide", "Hide LazyFinder window.");
-  QCommandLineOption quitOption("quit", "Quit the running LazyFinder daemon.");
+  QCommandLineOption toggleOption("toggle", "Toggle LazyLook window visibility.");
+  QCommandLineOption showOption("show", "Show and focus LazyLook window.");
+  QCommandLineOption hideOption("hide", "Hide LazyLook window.");
+  QCommandLineOption quitOption("quit", "Quit the running LazyLook daemon.");
   QCommandLineOption daemonOption("daemon", "Start in background daemon mode.");
   QCommandLineOption enableAutostartOption("enable-autostart",
-                                           "Enable LazyFinder autostart on system login.");
+                                           "Enable LazyLook autostart on system login.");
   QCommandLineOption disableAutostartOption("disable-autostart",
-                                            "Disable LazyFinder autostart on system login.");
+                                            "Disable LazyLook autostart on system login.");
 
   parser.addOption(toggleOption);
   parser.addOption(showOption);
@@ -65,20 +65,20 @@ int main(int argc, char *argv[])
   parser.process(app);
 
   if (parser.isSet(enableAutostartOption)) {
-    lazyfinder::Config::instance().load();
-    lazyfinder::Config::instance().set_launch_on_startup(true);
-    std::cout << "LazyFinder autostart on login enabled (~/.config/autostart/lazyfinder.desktop)."
+    lazylook::Config::instance().load();
+    lazylook::Config::instance().set_launch_on_startup(true);
+    std::cout << "LazyLook autostart on login enabled (~/.config/autostart/lazylook.desktop)."
               << std::endl;
     return 0;
   }
   if (parser.isSet(disableAutostartOption)) {
-    lazyfinder::Config::instance().load();
-    lazyfinder::Config::instance().set_launch_on_startup(false);
-    std::cout << "LazyFinder autostart on login disabled." << std::endl;
+    lazylook::Config::instance().load();
+    lazylook::Config::instance().set_launch_on_startup(false);
+    std::cout << "LazyLook autostart on login disabled." << std::endl;
     return 0;
   }
 
-  const QString serverName = "lazyfinder_ipc_" + QString::number(getuid());
+  const QString serverName = "lazylook_ipc_" + QString::number(getuid());
 
   // Check if another instance is already running
   {
@@ -117,13 +117,13 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  // Register GNOME global shortcut now that LazyFinder is running
-  lazyfinder::Config::instance().load();
-  lazyfinder::Config::register_gnome_shortcut(lazyfinder::Config::instance().global_shortcut());
+  // Register GNOME global shortcut now that LazyLook is running
+  lazylook::Config::instance().load();
+  lazylook::Config::register_gnome_shortcut(lazylook::Config::instance().global_shortcut());
 
   // Automatically unregister GNOME shortcut when app exits
   QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
-    lazyfinder::Config::unregister_gnome_shortcut();
+    lazylook::Config::unregister_gnome_shortcut();
   });
 
   // Remove any stale socket file from a prior crash
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
   QQuickStyle::setStyle("Basic");
 
-  lazyfinder::SearchController controller;
+  lazylook::SearchController controller;
 
   QQmlApplicationEngine engine;
   engine.rootContext()->setContextProperty("searchController", &controller);
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
       []() { QCoreApplication::exit(-1); },
       Qt::QueuedConnection);
 
-  engine.loadFromModule("LazyFinder", "Main");
+  engine.loadFromModule("LazyLook", "Main");
 
   QQuickWindow *window = nullptr;
   const auto rootObjects = engine.rootObjects();
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
 
   // Set up System Tray presence
   QSystemTrayIcon trayIcon;
-  QIcon searchIcon = QIcon::fromTheme("lazyfinder", QIcon::fromTheme("system-search"));
+  QIcon searchIcon = QIcon::fromTheme("lazylook", QIcon::fromTheme("system-search"));
   if (searchIcon.isNull()) {
     QPixmap pixmap(kTrayIconWidth, kTrayIconHeight);
     pixmap.fill(Qt::transparent);
@@ -181,13 +181,13 @@ int main(int argc, char *argv[])
     searchIcon = QIcon(pixmap);
   }
   trayIcon.setIcon(searchIcon);
-  trayIcon.setToolTip("LazyFinder (Ctrl+Shift+Space)");
+  trayIcon.setToolTip("LazyLook (Ctrl+Shift+Space)");
 
   QMenu trayMenu;
-  auto openAction = trayMenu.addAction("Open LazyFinder");
+  auto openAction = trayMenu.addAction("Open LazyLook");
   auto settingsAction = trayMenu.addAction("Preferences...");
   trayMenu.addSeparator();
-  auto quitAction = trayMenu.addAction("Quit LazyFinder");
+  auto quitAction = trayMenu.addAction("Quit LazyLook");
 
   trayIcon.setContextMenu(&trayMenu);
   trayIcon.show();
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
   });
 
   QObject::connect(quitAction, &QAction::triggered, [&app]() {
-    lazyfinder::Config::unregister_gnome_shortcut();
+    lazylook::Config::unregister_gnome_shortcut();
     app.quit();
   });
 
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
           }
         }
         else if (cmd == "QUIT") {
-          lazyfinder::Config::unregister_gnome_shortcut();
+          lazylook::Config::unregister_gnome_shortcut();
           app.quit();
         }
         client->disconnectFromServer();

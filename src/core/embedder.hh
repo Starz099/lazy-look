@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 class Embedder
@@ -40,4 +40,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

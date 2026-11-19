@@ -1,6 +1,6 @@
-# LazyFinder
+# LazyLook
 
-LazyFinder is a fast, local semantic file search tool for Linux desktop environments. It allows you to search files using natural language descriptions, exact keywords, or filenames through a lightweight, floating search bar.
+LazyLook is a fast, local semantic file search tool for Linux desktop environments. It allows you to search files using natural language descriptions, exact keywords, or filenames through a lightweight, floating search bar.
 
 ## Features
 
@@ -11,7 +11,7 @@ LazyFinder is a fast, local semantic file search tool for Linux desktop environm
   - **Video and Audio**: Indexes `.mp4`, `.mkv`, `.webm`, `.avi`, `.mov`, `.mp3`, `.wav`, `.flac`, `.ogg` with companion or embedded subtitle tracks (`.srt`, `.vtt`), container chapters, and scene keyframe thumbnail generation, opening directly at the matching timestamp in mpv, VLC, Celluloid, or Totem.
 - **D-Bus File Manager Reveal**: Selects and highlights files directly inside your desktop file manager (Nautilus, Dolphin, Nemo, Thunar) via `org.freedesktop.FileManager1.ShowItems`.
 - **Background Daemon & Memory Saver**: Runs as a single instance with low resource usage. The neural model automatically unloads from GPU VRAM and RAM after 5 minutes of inactivity.
-- **Wayland-Friendly Global Shortcut**: Toggle the search window using `Ctrl + Shift + Space`. The shortcut is registered with GNOME while LazyFinder is running, releasing the key combination when the application exits.
+- **Wayland-Friendly Global Shortcut**: Toggle the search window using `Ctrl + Shift + Space`. The shortcut is registered with GNOME while LazyLook is running, releasing the key combination when the application exits.
 
 ## Installation
 
@@ -21,10 +21,10 @@ Download the `.rpm` package from the releases page and install:
 
 ```bash
 # Fedora / RHEL
-sudo dnf install ./lazyfinder-0.1.0-x86_64.rpm
+sudo dnf install ./lazylook-0.1.0-x86_64.rpm
 
 # openSUSE
-sudo zypper install ./lazyfinder-0.1.0-x86_64.rpm
+sudo zypper install ./lazylook-0.1.0-x86_64.rpm
 ```
 
 ### Ubuntu, Debian, Linux Mint, and Pop!_OS (.deb)
@@ -32,7 +32,7 @@ sudo zypper install ./lazyfinder-0.1.0-x86_64.rpm
 Download the `.deb` package from the releases page and install:
 
 ```bash
-sudo apt install ./lazyfinder-0.1.0-amd64.deb
+sudo apt install ./lazylook-0.1.0-amd64.deb
 ```
 
 ### Arch Linux, Manjaro, and EndeavourOS (PKGBUILD)
@@ -49,27 +49,27 @@ makepkg -si
 Download the `.AppImage` package, make it executable, and run:
 
 ```bash
-chmod +x lazyfinder-0.1.0-x86_64.AppImage
-./lazyfinder-0.1.0-x86_64.AppImage
+chmod +x lazylook-0.1.0-x86_64.AppImage
+./lazylook-0.1.0-x86_64.AppImage
 ```
 
 > **Note**: The official AppImage bundles the neural embedding model (`embeddinggemma-2-Q8_0.gguf`) for zero-setup execution out of the box.
 
 ## AI Model Setup
 
-LazyFinder uses Google's `embeddinggemma-2-Q8_0.gguf` (296 MB) for on-device semantic vector search.
+LazyLook uses Google's `embeddinggemma-2-Q8_0.gguf` (296 MB) for on-device semantic vector search.
 
 1. **AppImage**: Pre-bundled; no download required.
-2. **In-App Download**: If running from native packages or source without bundled weights, LazyFinder provides an in-app one-click downloader with live progress tracking.
+2. **In-App Download**: If running from native packages or source without bundled weights, LazyLook provides an in-app one-click downloader with live progress tracking.
 3. **Setup Script**: You can also download the model from the terminal:
    ```bash
    ./scripts/setup_models.sh
    ```
 4. **Resolution Order**:
-   - `LAZYFINDER_MODELS_DIR` environment override
-   - Bundled AppImage path (`$APPDIR/usr/share/lazyfinder/models/`)
-   - User data directory (`~/.local/share/lazyfinder/models/`)
-   - System directory (`/usr/share/lazyfinder/models/`)
+   - `LAZYLOOK_MODELS_DIR` environment override (falls back to `LAZYFINDER_MODELS_DIR`)
+   - Bundled AppImage path (`$APPDIR/usr/share/lazylook/models/`)
+   - User data directory (`~/.local/share/lazylook/models/`)
+   - System directory (`/usr/share/lazylook/models/`)
    - Current working directory (`./models/`)
 
 ## Building from Source
@@ -101,8 +101,8 @@ sudo apt install build-essential cmake qt6-base-dev qt6-declarative-dev libqt6sv
 ### Build Instructions
 
 ```bash
-git clone https://github.com/your-username/lazy-finder.git
-cd lazy-finder
+git clone https://github.com/Starz099/lazy-look.git
+cd lazy-look
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
@@ -134,18 +134,18 @@ cd build && cpack -G DEB
 
 ## Running Tests
 
-LazyFinder includes a comprehensive automated test suite covering all core engine subsystems:
+LazyLook includes a comprehensive automated test suite covering all core engine subsystems:
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
 
 The test suites verify:
-1. `ExtractorTests`: Multi-format document text extraction, Office XML, code tokenization, image metadata, audio slicing, and video keyframes.
-2. `DatabaseTests`: SQLite schema initialization, migration, FTS5 keyword indexing, `sqlite-vec` dense vector KNN search, and RRF ranking.
-3. `ConfigTests`: XDG path expansion, model search directory discovery, priority resolution, and environment overrides.
-4. `EmbedderTests`: Gemma-2 embedding model loading, L2 unit normalization, cosine similarity mathematics, and GPU VRAM auto-sleep unloading.
-5. `IndexerWatcherTests`: File ignore rules (`.git`, `node_modules`, hidden files, glob patterns), CRUD file indexing/removal, and inotify recursive change detection.
+- `ExtractorTests`: Multi-format document text extraction, Office XML, code tokenization, image metadata, audio slicing, and video keyframes.
+- `DatabaseTests`: SQLite schema initialization, migration, FTS5 keyword indexing, `sqlite-vec` dense vector KNN search, and RRF ranking.
+- `ConfigTests`: XDG path expansion, model search directory discovery, priority resolution, and environment overrides.
+- `EmbedderTests`: Gemma-2 embedding model loading, L2 unit normalization, cosine similarity mathematics, and GPU VRAM auto-sleep unloading.
+- `IndexerWatcherTests`: File ignore rules (`.git`, `node_modules`, hidden files, glob patterns), CRUD file indexing/removal, and inotify recursive change detection.
 
 ## Search Prefixes & Filters
 
@@ -166,20 +166,20 @@ Typing a prefix on its own (such as `code:` or `video:`) will list recent files 
 
 | Option | Description |
 |---|---|
-| `lazyfinder` | Launch LazyFinder and show search bar |
-| `lazyfinder --daemon` | Start LazyFinder in background daemon mode |
-| `lazyfinder --toggle` | Toggle search bar visibility |
-| `lazyfinder --show` | Show and focus search bar |
-| `lazyfinder --hide` | Hide search bar |
-| `lazyfinder --quit` | Quit running LazyFinder process |
-| `lazyfinder --enable-autostart` | Enable background autostart on system login |
-| `lazyfinder --disable-autostart` | Disable autostart on system login |
+| `lazylook` | Launch LazyLook and show search bar |
+| `lazylook --daemon` | Start LazyLook in background daemon mode |
+| `lazylook --toggle` | Toggle search bar visibility |
+| `lazylook --show` | Show and focus search bar |
+| `lazylook --hide` | Hide search bar |
+| `lazylook --quit` | Quit running LazyLook process |
+| `lazylook --enable-autostart` | Enable background autostart on system login |
+| `lazylook --disable-autostart` | Disable autostart on system login |
 
 ## Keyboard Navigation
 
 | Key | Description |
 |---|---|
-| `Ctrl + Shift + Space` | Toggle LazyFinder floating search window |
+| `Ctrl + Shift + Space` | Toggle LazyLook floating search window |
 | `Up` / `Down` | Navigate search results |
 | `Return` | Open selected file at matching page or timestamp |
 | `Escape` | Dismiss search window or exit settings |

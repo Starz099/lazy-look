@@ -13,7 +13,7 @@
 #include "stb_image.h"
 #pragma GCC diagnostic pop
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -447,4 +447,4 @@ ProcessedFile ImageHandler::process(const std::filesystem::path &path)
   return result;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook

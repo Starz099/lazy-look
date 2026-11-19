@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 struct IndexStats
@@ -51,4 +51,4 @@ private:
   const std::atomic<bool> *cancel_token_ = nullptr;
 };
 
-} // namespace lazyfinder
+} // namespace lazylook

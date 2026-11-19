@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <filesystem>
 
-namespace lazyfinder
+namespace lazylook
 {
 
 namespace
@@ -250,4 +250,4 @@ int ResultsModel::pageNumberAt(int index) const
   return 0;
 }
 
-} // namespace lazyfinder
+} // namespace lazylook
