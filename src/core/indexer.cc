@@ -2,6 +2,7 @@
 
 #include "pipeline/registry.hh"
 
+#include <fnmatch.h>
 #include <iostream>
 #include <sys/stat.h>
 
@@ -65,7 +66,7 @@ bool Indexer::is_ignored(const std::filesystem::path &path) const
     }
 
     for (const auto &pattern : ignore_patterns_) {
-      if (name == pattern) {
+      if (name == pattern || fnmatch(pattern.c_str(), name.c_str(), 0) == 0) {
         return true;
       }
     }

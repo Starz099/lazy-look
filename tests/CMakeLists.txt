@@ -21,3 +21,19 @@ target_link_libraries(test_config
   PRIVATE lazyfinder_core
 )
 add_test(NAME ConfigTests COMMAND test_config)
+
+add_executable(test_embedder
+  test_embedder.cc
+)
+target_link_libraries(test_embedder
+  PRIVATE lazyfinder_core
+)
+add_test(NAME EmbedderTests COMMAND test_embedder)
+
+add_executable(test_indexer_watcher
+  test_indexer_watcher.cc
+)
+target_link_libraries(test_indexer_watcher
+  PRIVATE lazyfinder_core
+)
+add_test(NAME IndexerWatcherTests COMMAND test_indexer_watcher)
