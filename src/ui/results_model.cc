@@ -165,6 +165,8 @@ QVariant ResultsModel::data(const QModelIndex &index, int role) const
       return item.category;
     case IconNameRole:
       return item.iconName;
+    case PageNumberRole:
+      return item.pageNumber;
     default:
       return {};
   }
@@ -180,6 +182,7 @@ QHash<int, QByteArray> ResultsModel::roleNames() const
   roles[SnippetRole] = "snippet";
   roles[CategoryRole] = "category";
   roles[IconNameRole] = "iconName";
+  roles[PageNumberRole] = "pageNumber";
   return roles;
 }
 
@@ -197,6 +200,7 @@ void ResultsModel::setResults(const std::vector<SearchResult> &raw_results, cons
     dr.directory = format_display_dir(p);
     dr.score = QString::number(r.score, 'f', 3);
     dr.snippet = clean_snippet(r.snippet);
+    dr.pageNumber = r.page_number;
 
     QFileInfo fi(dr.path);
     dr.category = determine_category(fi.suffix());
@@ -231,6 +235,14 @@ QString ResultsModel::pathAt(int index) const
     return filtered_results_[static_cast<size_t>(index)].path;
   }
   return {};
+}
+
+int ResultsModel::pageNumberAt(int index) const
+{
+  if (index >= 0 && index < static_cast<int>(filtered_results_.size())) {
+    return filtered_results_[static_cast<size_t>(index)].pageNumber;
+  }
+  return 0;
 }
 
 void ResultsModel::applyFilter()

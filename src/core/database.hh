@@ -25,6 +25,8 @@ struct SearchResult
   std::string snippet;
   float score = 0.0f;
   int64_t file_id = 0;
+  int chunk_index = 0;
+  int page_number = 0; // 1-based page / slide index (0 if not applicable)
 };
 
 class Database

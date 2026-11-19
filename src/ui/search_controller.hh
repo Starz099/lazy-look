@@ -51,7 +51,7 @@ public:
   Q_INVOKABLE void setCurrentFilter(const QString &filter);
 
   Q_INVOKABLE void search(const QString &text);
-  Q_INVOKABLE void openFile(const QString &path);
+  Q_INVOKABLE void openFile(const QString &path, int pageNumber = 0);
   Q_INVOKABLE void revealInFolder(const QString &path);
   Q_INVOKABLE void copyPath(const QString &path);
 

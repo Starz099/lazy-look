@@ -21,24 +21,227 @@ namespace lazyfinder
 namespace
 {
 
-std::string sanitize_fts_query(std::string_view query)
+std::string clean_snippet_text(std::string_view text)
 {
-  std::ostringstream ss;
-  std::string current;
-
-  for (char ch : query) {
-    if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_') {
-      current += ch;
+  std::string result;
+  result.reserve(text.size());
+  bool last_space = true;
+  for (char c : text) {
+    if (c == '\r' || c == '\t' || c == '\n' || c == ' ') {
+      if (!last_space && !result.empty()) {
+        result.push_back(' ');
+        last_space = true;
+      }
     }
-    else {
-      if (!current.empty()) {
-        ss << '"' << current << "\"* ";
-        current.clear();
+    else if (static_cast<unsigned char>(c) > 32) {
+      result.push_back(c);
+      last_space = false;
+    }
+  }
+  while (!result.empty() && result.back() == ' ') {
+    result.pop_back();
+  }
+  return result;
+}
+
+std::string make_contextual_snippet(std::string_view raw_content,
+                                    std::string_view query,
+                                    int page_number,
+                                    std::string_view ext)
+{
+  if (raw_content.empty()) {
+    return {};
+  }
+
+  // Strip prepended filename header if present
+  std::string_view content = raw_content;
+  const size_t newline_pos = content.find('\n');
+  if (newline_pos != std::string_view::npos && newline_pos < 120) {
+    content.remove_prefix(newline_pos + 1);
+  }
+
+  // Tokenize query terms for context matching
+  std::vector<std::string> query_terms;
+  std::string curr_term;
+  for (char ch : query) {
+    if (std::isalnum(static_cast<unsigned char>(ch))) {
+      curr_term += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    else if (!curr_term.empty()) {
+      if (curr_term.size() >= 2) {
+        query_terms.push_back(curr_term);
+      }
+      curr_term.clear();
+    }
+  }
+  if (!curr_term.empty() && curr_term.size() >= 2) {
+    query_terms.push_back(curr_term);
+  }
+
+  size_t match_pos = std::string_view::npos;
+  size_t match_len = 0;
+
+  if (!query_terms.empty()) {
+    std::string lower_content;
+    lower_content.reserve(content.size());
+    for (char c : content) {
+      lower_content.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+
+    for (const auto &term : query_terms) {
+      size_t pos = lower_content.find(term);
+      if (pos != std::string::npos) {
+        if (match_pos == std::string_view::npos || pos < match_pos) {
+          match_pos = pos;
+          match_len = term.size();
+        }
       }
     }
   }
-  if (!current.empty()) {
-    ss << '"' << current << "\"* ";
+
+  std::string snippet;
+  constexpr size_t window_before = 45;
+  constexpr size_t window_after = 110;
+
+  if (match_pos != std::string_view::npos) {
+    size_t start = (match_pos > window_before) ? (match_pos - window_before) : 0;
+    if (start > 0) {
+      while (start < match_pos && !std::isspace(static_cast<unsigned char>(content[start]))) {
+        start++;
+      }
+      if (start < match_pos) {
+        start++;
+      }
+    }
+
+    size_t end = std::min(content.size(), match_pos + match_len + window_after);
+    if (end < content.size()) {
+      while (end < content.size() && !std::isspace(static_cast<unsigned char>(content[end]))) {
+        end++;
+      }
+    }
+
+    std::string window = clean_snippet_text(content.substr(start, end - start));
+    if (start > 0) {
+      snippet += "... ";
+    }
+    snippet += window;
+    if (end < content.size()) {
+      snippet += " ...";
+    }
+  }
+  else {
+    size_t len = std::min<size_t>(content.size(), 160);
+    if (len < content.size()) {
+      while (len > 0 && !std::isspace(static_cast<unsigned char>(content[len]))) {
+        len--;
+      }
+    }
+    snippet = clean_snippet_text(content.substr(0, len > 0 ? len : content.size()));
+    if (content.size() > 160) {
+      snippet += " ...";
+    }
+  }
+
+  // Prepend page / slide badge if applicable
+  std::string badge;
+  if (page_number > 0) {
+    if (ext == ".pdf") {
+      badge = "Page " + std::to_string(page_number) + " • ";
+    }
+    else if (ext == ".pptx" || ext == ".odp") {
+      badge = "Slide " + std::to_string(page_number) + " • ";
+    }
+  }
+
+  return badge + snippet;
+}
+
+std::string sanitize_fts_query(std::string_view query)
+{
+  std::vector<std::string> terms;
+  size_t i = 0;
+  const size_t n = query.size();
+
+  while (i < n) {
+    while (i < n && (std::isspace(static_cast<unsigned char>(query[i])) || query[i] == ',' ||
+                     query[i] == ';' || query[i] == ':')) {
+      i++;
+    }
+    if (i >= n) {
+      break;
+    }
+
+    if (query[i] == '"') {
+      i++;
+      std::string phrase;
+      while (i < n && query[i] != '"') {
+        char ch = query[i];
+        if (std::isalnum(static_cast<unsigned char>(ch)) || ch == ' ' || ch == '_' || ch == '-') {
+          phrase += ch;
+        }
+        i++;
+      }
+      if (i < n && query[i] == '"') {
+        i++;
+      }
+      while (!phrase.empty() && std::isspace(static_cast<unsigned char>(phrase.front()))) {
+        phrase.erase(phrase.begin());
+      }
+      while (!phrase.empty() && std::isspace(static_cast<unsigned char>(phrase.back()))) {
+        phrase.pop_back();
+      }
+      if (!phrase.empty()) {
+        terms.push_back("\"" + phrase + "\"");
+      }
+    }
+    else {
+      std::string word;
+      while (i < n && (std::isalnum(static_cast<unsigned char>(query[i])) || query[i] == '_')) {
+        word += query[i];
+        i++;
+      }
+      if (!word.empty()) {
+        std::vector<std::string> parts;
+        std::string curr;
+        for (char ch : word) {
+          if (std::isupper(static_cast<unsigned char>(ch)) && !curr.empty() &&
+              std::islower(static_cast<unsigned char>(curr.back()))) {
+            parts.push_back(curr);
+            curr.clear();
+          }
+          curr += ch;
+        }
+        if (!curr.empty()) {
+          parts.push_back(curr);
+        }
+
+        if (parts.size() > 1) {
+          std::string inner;
+          for (size_t p = 0; p < parts.size(); ++p) {
+            if (p > 0) {
+              inner += " AND ";
+            }
+            inner += "\"" + parts[p] + "\"*";
+          }
+          terms.push_back("(\"" + word + "\"* OR (" + inner + "))");
+        }
+        else {
+          terms.push_back("\"" + word + "\"*");
+        }
+      }
+      else {
+        i++;
+      }
+    }
+  }
+
+  std::ostringstream ss;
+  for (size_t k = 0; k < terms.size(); ++k) {
+    if (k > 0) {
+      ss << " AND ";
+    }
+    ss << terms[k];
   }
   return ss.str();
 }
@@ -428,6 +631,9 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     std::string path;
     std::string snippet;
     double rrf_score = 0.0;
+    int chunk_index = 0;
+    std::string best_content;
+    int best_rank = 99999;
   };
   std::unordered_map<int64_t, Candidate> candidates;
 
@@ -436,7 +642,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   // 1. Dense Vector kNN Search
   if (!query_embedding.empty()) {
     const char *vec_sql = R"(
-      SELECT c.file_id, c.content, f.path
+      SELECT c.file_id, c.chunk_index, c.content, f.path
       FROM vec_chunks v
       JOIN chunks c ON c.id = v.chunk_id
       JOIN files f ON f.id = c.file_id
@@ -457,13 +663,16 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
       std::unordered_set<int64_t> seen_vec_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         int64_t fid = sqlite3_column_int64(stmt, 0);
-        const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+        int chunk_idx = sqlite3_column_int(stmt, 1);
+        const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
 
         auto &cand = candidates[fid];
         cand.path = path_str ? path_str : "";
-        if (cand.snippet.empty() && content_str) {
-          cand.snippet = std::string(content_str, std::min<size_t>(strlen(content_str), 200));
+        if (rank < cand.best_rank && content_str) {
+          cand.best_rank = rank;
+          cand.chunk_index = chunk_idx;
+          cand.best_content = content_str;
         }
         if (seen_vec_files.insert(fid).second) {
           cand.rrf_score += 1.0 / (60.0 + rank);
@@ -478,7 +687,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   const std::string fts_query = sanitize_fts_query(query_text);
   if (!fts_query.empty()) {
     const char *fts_sql = R"(
-      SELECT c.file_id, c.content, f.path
+      SELECT c.file_id, c.chunk_index, c.content, f.path
       FROM chunks_fts fts
       JOIN chunks c ON c.id = fts.rowid
       JOIN files f ON f.id = c.file_id
@@ -496,13 +705,16 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
       std::unordered_set<int64_t> seen_fts_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         int64_t fid = sqlite3_column_int64(stmt, 0);
-        const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+        int chunk_idx = sqlite3_column_int(stmt, 1);
+        const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
 
         auto &cand = candidates[fid];
         cand.path = path_str ? path_str : "";
-        if (cand.snippet.empty() && content_str) {
-          cand.snippet = std::string(content_str, std::min<size_t>(strlen(content_str), 200));
+        if (rank < cand.best_rank && content_str) {
+          cand.best_rank = rank;
+          cand.chunk_index = chunk_idx;
+          cand.best_content = content_str;
         }
         if (seen_fts_files.insert(fid).second) {
           cand.rrf_score += 1.0 / (60.0 + rank);
@@ -558,8 +770,26 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     SearchResult res;
     res.file_id = fid;
     res.path = std::move(cand.path);
-    res.snippet = std::move(cand.snippet);
     res.score = static_cast<float>(cand.rrf_score);
+    res.chunk_index = cand.chunk_index;
+
+    std::string ext = std::filesystem::path(res.path).extension().string();
+    std::transform(
+        ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    int page_num = 0;
+    if (ext == ".pdf" || ext == ".pptx" || ext == ".odp") {
+      page_num = cand.chunk_index + 1;
+    }
+    res.page_number = page_num;
+
+    if (!cand.best_content.empty()) {
+      res.snippet = make_contextual_snippet(cand.best_content, query_text, page_num, ext);
+    }
+    else {
+      res.snippet = cand.snippet.empty() ? res.path : cand.snippet;
+    }
+
     results.push_back(std::move(res));
   }
 

@@ -14,6 +14,7 @@ Item {
   required property string snippet
   required property string category
   required property string iconName
+  required property int pageNumber
 
   property bool isSelected: ListView.isCurrentItem
 
@@ -162,7 +163,7 @@ Item {
     }
     onDoubleClicked: {
       ListView.view.currentIndex = root.index;
-      searchController.openFile(root.filePath);
+      searchController.openFile(root.filePath, root.pageNumber);
     }
   }
 }

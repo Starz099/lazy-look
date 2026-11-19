@@ -18,6 +18,7 @@ struct DisplayResult
   QString snippet;
   QString category; // "all", "doc", "code", "media", "other"
   QString iconName;
+  int pageNumber = 0;
 };
 
 class ResultsModel : public QAbstractListModel
@@ -33,7 +34,8 @@ public:
     ScoreRole,
     SnippetRole,
     CategoryRole,
-    IconNameRole
+    IconNameRole,
+    PageNumberRole
   };
 
   explicit ResultsModel(QObject *parent = nullptr);
@@ -46,7 +48,8 @@ public:
   void setFilter(const QString &filter);
   void clear();
 
-  [[nodiscard]] QString pathAt(int index) const;
+  [[nodiscard]] Q_INVOKABLE QString pathAt(int index) const;
+  [[nodiscard]] Q_INVOKABLE int pageNumberAt(int index) const;
 
 private:
   void applyFilter();

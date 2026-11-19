@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMetaObject>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QUrl>
 #include <chrono>
 #include <filesystem>
@@ -154,11 +156,32 @@ void SearchController::executeSearch(const QString &query_text, uint64_t qid)
   }).detach();
 }
 
-void SearchController::openFile(const QString &path)
+void SearchController::openFile(const QString &path, int pageNumber)
 {
   if (path.isEmpty()) {
     return;
   }
+
+  if (pageNumber > 0 && path.endsWith(".pdf", Qt::CaseInsensitive)) {
+    const QString papers_bin = QStandardPaths::findExecutable("papers");
+    if (!papers_bin.isEmpty() &&
+        QProcess::startDetached(papers_bin, {"-p", QString::number(pageNumber), path})) {
+      return;
+    }
+
+    const QString evince_bin = QStandardPaths::findExecutable("evince");
+    if (!evince_bin.isEmpty() &&
+        QProcess::startDetached(evince_bin, {"-p", QString::number(pageNumber), path})) {
+      return;
+    }
+
+    const QString okular_bin = QStandardPaths::findExecutable("okular");
+    if (!okular_bin.isEmpty() &&
+        QProcess::startDetached(okular_bin, {"-p", QString::number(pageNumber), path})) {
+      return;
+    }
+  }
+
   QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }
 

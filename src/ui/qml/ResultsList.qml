@@ -23,8 +23,9 @@ Item {
   function activateCurrent() {
     if (listView.currentIndex >= 0 && listView.currentIndex < listView.count) {
       const p = searchController.resultsModel.pathAt(listView.currentIndex);
+      const page = searchController.resultsModel.pageNumberAt(listView.currentIndex);
       if (p.length > 0) {
-        searchController.openFile(p);
+        searchController.openFile(p, page);
       }
     }
   }

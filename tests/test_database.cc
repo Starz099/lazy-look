@@ -148,6 +148,97 @@ void test_directory_removal_and_dedup()
   std::cout << "  ✓ Directory removal and deduplication passed." << std::endl;
 }
 
+void test_query_intelligence_and_prefix()
+{
+  std::cout << "[Test] Query intelligence, camelCase and prefix search..." << std::endl;
+
+  const auto db_path = temp_db_path();
+  lazyfinder::Database db;
+  TEST_ASSERT(db.open(db_path.string()), "Database opened");
+
+  // Insert files with code identifiers and camelCase
+  db.insert_file_chunks("/src/user_controller.cc",
+                        200,
+                        1000,
+                        {"user_controller.cc\nvoid getUserProfileById(int userId) { return; }"});
+  db.insert_file_chunks(
+      "/src/auth.cc",
+      150,
+      1000,
+      {"auth.cc\nbool validateSessionToken(const Token &token) { return true; }"});
+  db.insert_file_chunks(
+      "/docs/changelog.txt",
+      300,
+      1000,
+      {"changelog.txt\nFixed database connection timeout issue in background worker thread."});
+
+  // 1. Prefix query: "valid" expands to valid* matching validateSessionToken
+  auto res_prefix = db.search_hybrid({}, "valid", 5);
+  TEST_ASSERT(!res_prefix.empty(), "Prefix search for 'valid' matches validateSessionToken");
+  TEST_ASSERT(res_prefix[0].path == "/src/auth.cc", "Matched auth.cc");
+
+  // 2. camelCase query: "getUserProfile" splits into tokens matching getUserProfileById
+  auto res_camel = db.search_hybrid({}, "getUserProfile", 5);
+  TEST_ASSERT(!res_camel.empty(), "camelCase search finds getUserProfileById");
+  TEST_ASSERT(res_camel[0].path == "/src/user_controller.cc", "Matched user_controller.cc");
+
+  // 3. Quoted phrase search: "\"connection timeout\""
+  auto res_phrase = db.search_hybrid({}, "\"connection timeout\"", 5);
+  TEST_ASSERT(!res_phrase.empty(), "Quoted phrase matches changelog.txt");
+  TEST_ASSERT(res_phrase[0].path == "/docs/changelog.txt", "Matched changelog.txt");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ Query intelligence and prefix search passed." << std::endl;
+}
+
+void test_contextual_snippets_and_pages()
+{
+  std::cout << "[Test] Contextual windowed snippets and page/slide numbers..." << std::endl;
+
+  const auto db_path = temp_db_path();
+  lazyfinder::Database db;
+  TEST_ASSERT(db.open(db_path.string()), "Database opened");
+
+  // Multi-page PDF: 3 pages (chunk 0 = page 1, chunk 1 = page 2, chunk 2 = page 3)
+  const std::string pdf_path = "/docs/manual.pdf";
+  const std::vector<std::string> pdf_chunks = {
+      "manual.pdf\nIntroduction to the platform and system prerequisites.",
+      "manual.pdf\nSection 2: Installation instructions with PostgreSQL backend database setup and "
+      "configuration.",
+      "manual.pdf\nSection 3: Conclusion and troubleshooting common errors."};
+  db.insert_file_chunks(pdf_path, 1000, 1000, pdf_chunks);
+
+  // Multi-slide PPTX: 2 slides (chunk 0 = slide 1, chunk 1 = slide 2)
+  const std::string pptx_path = "/slides/strategy.pptx";
+  const std::vector<std::string> pptx_chunks = {
+      "strategy.pptx\nSlide 1 Title: Q3 Engineering Goals and Deliverables",
+      "strategy.pptx\nSlide 2: High Performance Vector Search and Hardware Acceleration"};
+  db.insert_file_chunks(pptx_path, 2000, 1000, pptx_chunks);
+
+  // Search for "PostgreSQL" in the PDF -> should match chunk 1 -> page 2
+  auto res_pdf = db.search_hybrid({}, "PostgreSQL", 5);
+  TEST_ASSERT(!res_pdf.empty(), "Found PDF result for PostgreSQL");
+  TEST_ASSERT(res_pdf[0].path == pdf_path, "PDF path matches");
+  TEST_ASSERT(res_pdf[0].page_number == 2, "Page number is 2 (chunk index 1 + 1)");
+  TEST_ASSERT(res_pdf[0].snippet.find("Page 2 • ") != std::string::npos,
+              "Snippet contains Page 2 badge");
+  TEST_ASSERT(res_pdf[0].snippet.find("PostgreSQL") != std::string::npos,
+              "Snippet contains PostgreSQL term");
+
+  // Search for "Hardware" in PPTX -> should match chunk 1 -> slide 2
+  auto res_pptx = db.search_hybrid({}, "Hardware", 5);
+  TEST_ASSERT(!res_pptx.empty(), "Found PPTX result for Hardware");
+  TEST_ASSERT(res_pptx[0].path == pptx_path, "PPTX path matches");
+  TEST_ASSERT(res_pptx[0].page_number == 2, "Slide number is 2 (chunk index 1 + 1)");
+  TEST_ASSERT(res_pptx[0].snippet.find("Slide 2 • ") != std::string::npos,
+              "Snippet contains Slide 2 badge");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ Contextual snippets and page/slide numbers passed." << std::endl;
+}
+
 int main()
 {
   std::cout << "========================================" << std::endl;
@@ -156,6 +247,8 @@ int main()
 
   test_database_crud();
   test_directory_removal_and_dedup();
+  test_query_intelligence_and_prefix();
+  test_contextual_snippets_and_pages();
 
   std::cout << "========================================" << std::endl;
   std::cout << "ALL DATABASE TESTS PASSED SUCCESSFULLY! " << std::endl;
