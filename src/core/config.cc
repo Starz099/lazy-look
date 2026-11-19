@@ -141,6 +141,63 @@ bool Config::load()
       continue;
     }
 
+    if (line.find("global_shortcut") != std::string::npos) {
+      auto first_quote = line.find('"');
+      auto last_quote = line.rfind('"');
+      if (first_quote != std::string::npos && last_quote != std::string::npos &&
+          first_quote < last_quote) {
+        global_shortcut_ = line.substr(first_quote + 1, last_quote - first_quote - 1);
+      }
+      continue;
+    }
+
+    if (line.find("auto_sync") != std::string::npos) {
+      auto eq = line.find('=');
+      if (eq != std::string::npos) {
+        auto val = line.substr(eq + 1);
+        auto pos = val.find_first_not_of(" \t");
+        if (pos != std::string::npos) {
+          auto sub = val.substr(pos, 4);
+          auto sub_true = val.substr(pos, 5);
+          auto sub_clean = val.substr(pos);
+          auto false_pos = sub_clean.find("false");
+          auto true_pos = sub_clean.find("true");
+          if (false_pos != std::string::npos) {
+            auto true_earlier = sub_clean.find("true");
+            if (true_earlier == std::string::npos || false_pos < true_earlier) {
+              auto sub_false = sub_clean.substr(false_pos, 5);
+              if (sub_false == "false")
+                auto_sync_ = false;
+            }
+          }
+          if (true_pos != std::string::npos && auto_sync_) {
+            auto_sync_ = true;
+          }
+        }
+      }
+      continue;
+    }
+
+    if (line.find("launch_on_startup") != std::string::npos) {
+      if (line.find("true") != std::string::npos) {
+        launch_on_startup_ = true;
+      }
+      else if (line.find("false") != std::string::npos) {
+        launch_on_startup_ = false;
+      }
+      continue;
+    }
+
+    if (line.find("memory_saver") != std::string::npos) {
+      if (line.find("false") != std::string::npos) {
+        memory_saver_ = false;
+      }
+      else if (line.find("true") != std::string::npos) {
+        memory_saver_ = true;
+      }
+      continue;
+    }
+
     if (in_dirs) {
       if (line.find(']') != std::string::npos) {
         in_dirs = false;
@@ -187,7 +244,13 @@ bool Config::save() const
     file << "  \"" << ignore_patterns_[i] << "\""
          << (i + 1 < ignore_patterns_.size() ? ",\n" : "\n");
   }
-  file << "]\n";
+  file << "]\n\n";
+
+  file << "[system]\n";
+  file << "global_shortcut = \"" << global_shortcut_ << "\"\n";
+  file << "auto_sync = " << (auto_sync_ ? "true" : "false") << "\n";
+  file << "launch_on_startup = " << (launch_on_startup_ ? "true" : "false") << "\n";
+  file << "memory_saver = " << (memory_saver_ ? "true" : "false") << "\n";
 
   return true;
 }
@@ -237,6 +300,167 @@ bool Config::remove_watched_directory(std::string_view dir)
 const std::vector<std::string> &Config::ignore_patterns() const
 {
   return ignore_patterns_;
+}
+
+const std::string &Config::global_shortcut() const
+{
+  return global_shortcut_;
+}
+
+void Config::set_global_shortcut(std::string_view shortcut)
+{
+  global_shortcut_ = std::string(shortcut);
+  register_gnome_shortcut(global_shortcut_);
+  save();
+}
+
+bool Config::auto_sync() const
+{
+  return auto_sync_;
+}
+
+void Config::set_auto_sync(bool enabled)
+{
+  auto_sync_ = enabled;
+  save();
+}
+
+bool Config::launch_on_startup() const
+{
+  return launch_on_startup_;
+}
+
+void Config::set_launch_on_startup(bool enabled)
+{
+  launch_on_startup_ = enabled;
+  set_autostart_desktop_file(enabled);
+  save();
+}
+
+bool Config::memory_saver() const
+{
+  return memory_saver_;
+}
+
+void Config::set_memory_saver(bool enabled)
+{
+  memory_saver_ = enabled;
+  save();
+}
+
+bool Config::register_gnome_shortcut(std::string_view shortcut)
+{
+  std::string sc(shortcut);
+  if (sc.empty()) {
+    sc = "<Control><Shift>space";
+  }
+
+  // Check if gsettings is available
+  if (std::system("which gsettings >/dev/null 2>&1") != 0) {
+    return false;
+  }
+
+  const std::string path =
+      "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazyfinder/";
+
+  std::string cmd =
+      "python3 -c \"\n"
+      "import subprocess\n"
+      "path = '" +
+      path +
+      "'\n"
+      "cur = subprocess.run(['gsettings', 'get', 'org.gnome.settings-daemon.plugins.media-keys', "
+      "'custom-keybindings'], capture_output=True, text=True).stdout.strip()\n"
+      "try:\n"
+      "    items = eval(cur) if cur.startswith('[') else []\n"
+      "except:\n"
+      "    items = []\n"
+      "if path not in items:\n"
+      "    items.append(path)\n"
+      "    s_list = '[' + ', '.join(f'\\'{x}\\' ' for x in items) + ']'\n"
+      "    subprocess.run(['gsettings', 'set', 'org.gnome.settings-daemon.plugins.media-keys', "
+      "'custom-keybindings', s_list])\n"
+      "subprocess.run(['gsettings', 'set', "
+      "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'name', "
+      "'LazyFinder'])\n"
+      "subprocess.run(['gsettings', 'set', "
+      "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'command', "
+      "'sh -c \\\"PATH=\\$HOME/.local/bin:\\$HOME/.cargo/bin:/usr/local/bin:/usr/bin:\\$PATH exec "
+      "lazyfinder --toggle\\\"'])\n"
+      "subprocess.run(['gsettings', 'set', "
+      "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}', 'binding', '" +
+      sc +
+      "'])\n"
+      "\" >/dev/null 2>&1";
+
+  int ret = std::system(cmd.c_str());
+  return ret == 0;
+}
+
+bool Config::unregister_gnome_shortcut()
+{
+  if (std::system("which gsettings >/dev/null 2>&1") != 0) {
+    return false;
+  }
+
+  const std::string path =
+      "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-lazyfinder/";
+
+  std::string cmd =
+      "python3 -c \"\n"
+      "import subprocess\n"
+      "path = '" +
+      path +
+      "'\n"
+      "cur = subprocess.run(['gsettings', 'get', 'org.gnome.settings-daemon.plugins.media-keys', "
+      "'custom-keybindings'], capture_output=True, text=True).stdout.strip()\n"
+      "try:\n"
+      "    items = eval(cur) if cur.startswith('[') else []\n"
+      "except:\n"
+      "    items = []\n"
+      "if path in items:\n"
+      "    items.remove(path)\n"
+      "    s_list = '[' + ', '.join(f'\\'{x}\\' ' for x in items) + ']'\n"
+      "    subprocess.run(['gsettings', 'set', 'org.gnome.settings-daemon.plugins.media-keys', "
+      "'custom-keybindings', s_list])\n"
+      "subprocess.run(['gsettings', 'reset-recursively', "
+      "f'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}'])\n"
+      "\" >/dev/null 2>&1";
+
+  int ret = std::system(cmd.c_str());
+  return ret == 0;
+}
+
+bool Config::set_autostart_desktop_file(bool enabled)
+{
+  const std::string home = get_default_home();
+  if (home.empty()) {
+    return false;
+  }
+  const auto autostart_dir = std::filesystem::path(home) / ".config" / "autostart";
+  const auto desktop_path = autostart_dir / "lazyfinder.desktop";
+
+  std::error_code ec;
+  if (!enabled) {
+    std::filesystem::remove(desktop_path, ec);
+    return true;
+  }
+
+  std::filesystem::create_directories(autostart_dir, ec);
+  std::ofstream file(desktop_path);
+  if (!file) {
+    return false;
+  }
+  file << "[Desktop Entry]\n"
+       << "Type=Application\n"
+       << "Name=LazyFinder\n"
+       << "Comment=Instant AI & Hybrid Desktop Search\n"
+       << "Exec=lazyfinder --daemon\n"
+       << "Icon=system-search\n"
+       << "Hidden=false\n"
+       << "NoDisplay=false\n"
+       << "X-GNOME-Autostart-enabled=true\n";
+  return true;
 }
 
 } // namespace lazyfinder

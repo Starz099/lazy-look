@@ -61,6 +61,14 @@ int parse_timestamp_from_text(std::string_view text, size_t match_pos)
   return 0;
 }
 
+static size_t align_utf8_forward(std::string_view s, size_t pos)
+{
+  while (pos < s.size() && (static_cast<unsigned char>(s[pos]) & 0xC0) == 0x80) {
+    pos++;
+  }
+  return pos;
+}
+
 std::string clean_snippet_text(std::string_view text)
 {
   std::string result;
@@ -152,6 +160,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
       if (start < match_pos) {
         start++;
       }
+      start = align_utf8_forward(content, start);
     }
 
     size_t end = std::min(content.size(), match_pos + match_len + window_after);
@@ -159,6 +168,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
       while (end < content.size() && !std::isspace(static_cast<unsigned char>(content[end]))) {
         end++;
       }
+      end = align_utf8_forward(content, end);
     }
 
     std::string window = clean_snippet_text(content.substr(start, end - start));
@@ -177,6 +187,7 @@ std::string make_contextual_snippet(std::string_view raw_content,
         len--;
       }
     }
+    len = align_utf8_forward(content, len);
     snippet = clean_snippet_text(content.substr(0, len > 0 ? len : content.size()));
     if (content.size() > 160) {
       snippet += " ...";

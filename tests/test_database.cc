@@ -255,6 +255,37 @@ void test_contextual_snippets_and_pages()
   std::cout << "  ✓ Contextual snippets, page numbers, and media timestamps passed." << std::endl;
 }
 
+void test_utf8_snippet_cleanliness()
+{
+  std::cout << "[Test] UTF-8 character preservation & mojibake prevention..." << std::endl;
+
+  const auto db_path = temp_db_path();
+  lazyfinder::Database db;
+  TEST_ASSERT(db.open(db_path.string()), "Database opened");
+
+  const std::string doc_path = "/docs/CV_Mayank.pdf";
+  const std::vector<std::string> doc_chunks = {
+      "CV_Mayank.pdf\nRust, Egui, Windows WASAPI, Discord API Leerio | AI PDF Intelligence "
+      "Platform Link | Code • C++20, Qt6, Vulkan Acceleration"};
+  db.insert_file_chunks(doc_path, 1024, 1000, doc_chunks);
+
+  auto res = db.search_hybrid({}, "Vulkan", 5);
+  TEST_ASSERT(!res.empty(), "Found result for Vulkan");
+  TEST_ASSERT(res[0].page_number == 1, "Page number is 1");
+  // Check badge contains clean bullet • (U+2022)
+  TEST_ASSERT(res[0].snippet.find("Page 1 • ") != std::string::npos,
+              "Snippet contains clean bullet badge Page 1 • ");
+  // Check content contains clean bullet • (U+2022) and NO mojibake \xc3\xa2 (â)
+  TEST_ASSERT(res[0].snippet.find("Code • C++20") != std::string::npos,
+              "Snippet preserves internal bullet point without alteration");
+  TEST_ASSERT(res[0].snippet.find("â") == std::string::npos,
+              "Snippet has zero mojibake 'â' characters");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ UTF-8 snippet cleanliness and mojibake prevention passed." << std::endl;
+}
+
 int main()
 {
   std::cout << "========================================" << std::endl;
@@ -265,6 +296,7 @@ int main()
   test_directory_removal_and_dedup();
   test_query_intelligence_and_prefix();
   test_contextual_snippets_and_pages();
+  test_utf8_snippet_cleanliness();
 
   std::cout << "========================================" << std::endl;
   std::cout << "ALL DATABASE TESTS PASSED SUCCESSFULLY! " << std::endl;

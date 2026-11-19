@@ -20,6 +20,7 @@ public:
   Embedder &operator=(Embedder &&) noexcept;
 
   bool load_model(std::string_view model_path);
+  void unload_model();
   [[nodiscard]] bool is_loaded() const;
   [[nodiscard]] int embedding_dim() const;
 

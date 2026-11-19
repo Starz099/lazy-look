@@ -132,6 +132,22 @@ bool Embedder::load_model(std::string_view model_path)
   return true;
 }
 
+void Embedder::unload_model()
+{
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (impl_->ctx) {
+    llama_free(impl_->ctx);
+    impl_->ctx = nullptr;
+  }
+  if (impl_->model) {
+    llama_model_free(impl_->model);
+    impl_->model = nullptr;
+  }
+  impl_->vocab = nullptr;
+  impl_->n_embd = 0;
+  std::cout << "[LazyFinder Embedder] Model unloaded (auto-sleep / VRAM freed)" << std::endl;
+}
+
 bool Embedder::is_loaded() const
 {
   return impl_->model != nullptr && impl_->ctx != nullptr;

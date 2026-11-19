@@ -65,9 +65,31 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
     executeSearch(current_q, qid);
   });
 
+  model_sleep_timer_.setSingleShot(true);
+  model_sleep_timer_.setInterval(5 * 60 * 1000); // 5 min idle
+  connect(&model_sleep_timer_, &QTimer::timeout, this, [this]() {
+    if (Config::instance().memory_saver() && !is_indexing_) {
+      embedder_.unload_model();
+      model_loaded_ = false;
+      emit modelLoadedChanged();
+    }
+  });
+
   db_.open();
   Config::instance().load();
   updateStatsInternal();
+
+  // Start inotify background watcher if enabled
+  if (Config::instance().auto_sync()) {
+    watcher_.start(Config::instance().watched_directories(),
+                   [this](const std::vector<std::string> &paths) {
+                     QMetaObject::invokeMethod(
+                         this, [this, paths]() { onFilesChanged(paths); }, Qt::QueuedConnection);
+                   });
+  }
+
+  // Ensure GNOME custom shortcut is registered
+  Config::register_gnome_shortcut(Config::instance().global_shortcut());
 
   // Asynchronously load embedder weights without blocking UI
   std::thread([this]() {
@@ -78,6 +100,7 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
           [this]() {
             model_loaded_ = true;
             emit modelLoadedChanged();
+            resetModelSleepTimer();
           },
           Qt::QueuedConnection);
     }
@@ -86,11 +109,19 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
 
 SearchController::~SearchController()
 {
+  Config::unregister_gnome_shortcut();
+  watcher_.stop();
   cancel_indexing_ = true;
   if (indexing_thread_.joinable()) {
     indexing_thread_.join();
   }
   db_.close();
+}
+
+void SearchController::quitApp()
+{
+  Config::unregister_gnome_shortcut();
+  QCoreApplication::quit();
 }
 
 void SearchController::setQuery(const QString &q)
@@ -120,10 +151,12 @@ void SearchController::search(const QString &text)
 
 void SearchController::executeSearch(const QString &query_text, uint64_t qid)
 {
+  resetModelSleepTimer();
   const std::string q_str = query_text.toStdString();
   const QString filter = current_filter_;
 
   std::thread([this, q_str, qid, filter]() {
+    ensureModelLoaded();
     const auto start_time = std::chrono::steady_clock::now();
 
     std::vector<float> query_emb;
@@ -303,6 +336,7 @@ void SearchController::addWatchedDirectory(const QString &dir)
   if (Config::instance().add_watched_directory(dir_str)) {
     std::cout << "[Folder] Added. Total watched directories: "
               << Config::instance().watched_directories().size() << std::endl;
+    watcher_.update_directories(Config::instance().watched_directories());
     emit watchedDirectoriesChanged();
   }
   else {
@@ -320,6 +354,7 @@ void SearchController::removeWatchedDirectory(const QString &dir)
   Config::instance().remove_watched_directory(dir_str);
   db_.remove_directory(Config::expand_path(dir_str));
   updateStatsInternal();
+  watcher_.update_directories(Config::instance().watched_directories());
   std::cout << "[Folder] Removed and database pruned. Remaining files: " << total_files_ << " ("
             << total_chunks_ << " chunks)" << std::endl;
   emit watchedDirectoriesChanged();
@@ -549,6 +584,133 @@ void SearchController::updateStatsInternal()
   total_files_ = db_.total_files();
   total_chunks_ = db_.total_chunks();
   emit statsChanged();
+}
+
+void SearchController::resetModelSleepTimer()
+{
+  if (Config::instance().memory_saver()) {
+    model_sleep_timer_.start();
+  }
+}
+
+void SearchController::ensureModelLoaded()
+{
+  if (!embedder_.is_loaded()) {
+    const std::string mpath = get_default_model_path();
+    if (embedder_.load_model(mpath)) {
+      model_loaded_ = true;
+      emit modelLoadedChanged();
+    }
+  }
+}
+
+void SearchController::onFilesChanged(const std::vector<std::string> &changed_paths)
+{
+  if (is_indexing_ || changed_paths.empty()) {
+    return;
+  }
+  std::cout << "[Watcher] Detected " << changed_paths.size() << " changed file(s). Auto-indexing..."
+            << std::endl;
+
+  std::thread([this, changed_paths]() {
+    ensureModelLoaded();
+    Indexer indexer(db_, embedder_);
+    int count = 0;
+    for (const auto &p_str : changed_paths) {
+      std::filesystem::path p(p_str);
+      std::error_code ec;
+      if (!std::filesystem::exists(p, ec)) {
+        db_.remove_file(p_str);
+        count++;
+      }
+      else if (std::filesystem::is_regular_file(p, ec)) {
+        if (indexer.index_file(p)) {
+          count++;
+        }
+      }
+    }
+    QMetaObject::invokeMethod(
+        this,
+        [this, count]() {
+          updateStatsInternal();
+          std::cout << "[Watcher] Auto-sync finished: " << count << " record(s) updated."
+                    << std::endl;
+          resetModelSleepTimer();
+        },
+        Qt::QueuedConnection);
+  }).detach();
+}
+
+QString SearchController::globalShortcut() const
+{
+  return QString::fromStdString(Config::instance().global_shortcut());
+}
+
+void SearchController::setGlobalShortcut(const QString &shortcut)
+{
+  if (shortcut.trimmed().isEmpty()) {
+    return;
+  }
+  Config::instance().set_global_shortcut(shortcut.trimmed().toStdString());
+  emit globalShortcutChanged();
+}
+
+bool SearchController::autoSync() const
+{
+  return Config::instance().auto_sync();
+}
+
+void SearchController::setAutoSync(bool enabled)
+{
+  if (Config::instance().auto_sync() == enabled) {
+    return;
+  }
+  Config::instance().set_auto_sync(enabled);
+  if (enabled) {
+    watcher_.start(Config::instance().watched_directories(),
+                   [this](const std::vector<std::string> &paths) {
+                     QMetaObject::invokeMethod(
+                         this, [this, paths]() { onFilesChanged(paths); }, Qt::QueuedConnection);
+                   });
+  }
+  else {
+    watcher_.stop();
+  }
+  emit autoSyncChanged();
+}
+
+bool SearchController::launchOnStartup() const
+{
+  return Config::instance().launch_on_startup();
+}
+
+void SearchController::setLaunchOnStartup(bool enabled)
+{
+  if (Config::instance().launch_on_startup() == enabled) {
+    return;
+  }
+  Config::instance().set_launch_on_startup(enabled);
+  emit launchOnStartupChanged();
+}
+
+bool SearchController::memorySaver() const
+{
+  return Config::instance().memory_saver();
+}
+
+void SearchController::setMemorySaver(bool enabled)
+{
+  if (Config::instance().memory_saver() == enabled) {
+    return;
+  }
+  Config::instance().set_memory_saver(enabled);
+  if (enabled) {
+    resetModelSleepTimer();
+  }
+  else {
+    model_sleep_timer_.stop();
+  }
+  emit memorySaverChanged();
 }
 
 } // namespace lazyfinder

@@ -5,6 +5,7 @@
 #include "embedder.hh"
 #include "indexer.hh"
 #include "results_model.hh"
+#include "watcher.hh"
 
 #include <QObject>
 #include <QString>
@@ -32,6 +33,12 @@ class SearchController : public QObject
   Q_PROPERTY(
       QStringList watchedDirectories READ watchedDirectories NOTIFY watchedDirectoriesChanged)
   Q_PROPERTY(bool modelLoaded READ modelLoaded NOTIFY modelLoadedChanged)
+  Q_PROPERTY(QString globalShortcut READ globalShortcut WRITE setGlobalShortcut NOTIFY
+                 globalShortcutChanged)
+  Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
+  Q_PROPERTY(bool launchOnStartup READ launchOnStartup WRITE setLaunchOnStartup NOTIFY
+                 launchOnStartupChanged)
+  Q_PROPERTY(bool memorySaver READ memorySaver WRITE setMemorySaver NOTIFY memorySaverChanged)
 
 public:
   explicit SearchController(QObject *parent = nullptr);
@@ -47,6 +54,18 @@ public:
   [[nodiscard]] QStringList watchedDirectories() const;
   [[nodiscard]] bool modelLoaded() const { return model_loaded_; }
 
+  [[nodiscard]] QString globalShortcut() const;
+  Q_INVOKABLE void setGlobalShortcut(const QString &shortcut);
+
+  [[nodiscard]] bool autoSync() const;
+  Q_INVOKABLE void setAutoSync(bool enabled);
+
+  [[nodiscard]] bool launchOnStartup() const;
+  Q_INVOKABLE void setLaunchOnStartup(bool enabled);
+
+  [[nodiscard]] bool memorySaver() const;
+  Q_INVOKABLE void setMemorySaver(bool enabled);
+
   Q_INVOKABLE void setQuery(const QString &q);
   Q_INVOKABLE void setCurrentFilter(const QString &filter);
 
@@ -58,6 +77,7 @@ public:
   Q_INVOKABLE void addWatchedDirectory(const QString &dir);
   Q_INVOKABLE void removeWatchedDirectory(const QString &dir);
   Q_INVOKABLE void chooseFolderAndAdd();
+  Q_INVOKABLE void quitApp();
 
   Q_INVOKABLE void startSync();
   Q_INVOKABLE void cancelSync();
@@ -73,14 +93,22 @@ signals:
   void modelLoadedChanged();
   void searchCompleted();
   void fileOpened();
+  void globalShortcutChanged();
+  void autoSyncChanged();
+  void launchOnStartupChanged();
+  void memorySaverChanged();
 
 private:
   void executeSearch(const QString &query_text, uint64_t qid);
   void updateStatsInternal();
+  void resetModelSleepTimer();
+  void onFilesChanged(const std::vector<std::string> &changed_paths);
+  void ensureModelLoaded();
 
   Database db_;
   Embedder embedder_;
   ResultsModel results_model_;
+  Watcher watcher_;
 
   QString query_;
   QString current_filter_ = "all";
@@ -91,6 +119,7 @@ private:
   bool model_loaded_ = false;
 
   QTimer debounce_timer_;
+  QTimer model_sleep_timer_;
   std::atomic<uint64_t> query_counter_{0};
 
   std::thread indexing_thread_;

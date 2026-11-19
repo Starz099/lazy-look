@@ -45,6 +45,7 @@ add_library(lazyfinder_core STATIC
   extractor.cc
   indexer.cc
   config.cc
+  watcher.cc
 )
 
 target_compile_definitions(lazyfinder_core

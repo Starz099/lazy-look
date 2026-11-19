@@ -12,6 +12,18 @@ Window {
 
   property bool settingsOpen: false
 
+  onActiveChanged: {
+    if (!window.active && !window.settingsOpen) {
+      window.visible = false;
+    }
+  }
+
+  onVisibleChanged: {
+    if (window.visible) {
+      searchBox.focusInput();
+    }
+  }
+
   // Center on screen horizontally and position in upper third
   Component.onCompleted: {
     x = (Screen.width - width) / 2;
@@ -199,7 +211,7 @@ Window {
     } else if (searchBox.text.length > 0) {
       searchBox.clearText();
     } else {
-      Qt.quit();
+      window.visible = false;
     }
   }
 
