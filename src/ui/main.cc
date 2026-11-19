@@ -5,6 +5,7 @@
 #include <QCommandLineParser>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLoggingCategory>
 #include <QMenu>
 #include <QPainter>
 #include <QQmlApplicationEngine>
@@ -18,6 +19,9 @@
 
 int main(int argc, char *argv[])
 {
+  // Filter benign Qt platform abstraction warnings on Wayland/Portal
+  QLoggingCategory::setFilterRules("qt.qpa.services.warning=false\nqt.core.qobject.connect=false");
+
   QApplication app(argc, argv);
   app.setOrganizationName("LazyFinder");
   app.setApplicationName("LazyFinder");

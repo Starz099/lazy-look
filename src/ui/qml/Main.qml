@@ -6,7 +6,7 @@ Window {
   id: window
   visible: true
   width: 680
-  height: 520
+  height: 500
   color: "transparent"
   flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
 
@@ -31,25 +31,26 @@ Window {
     searchBox.focusInput();
   }
 
-  // Floating Spotlight Card
+  // Floating Spotlight Card (Tasteful warm matte stone-gray like DigUp)
   Rectangle {
     id: card
     anchors.fill: parent
-    radius: 16
-    color: "#1e1e1e"
-    border.color: Qt.rgba(1, 1, 1, 0.14)
+    radius: 14
+    color: "#2d2c2a"
+    border.color: Qt.rgba(255, 255, 255, 0.09)
     border.width: 1
     clip: true
 
-    Column {
+    Item {
       anchors.fill: parent
-      anchors.margins: 14
-      spacing: 10
+      anchors.margins: 12
 
       // 1. Search Box
       SearchBox {
         id: searchBox
-        width: parent.width
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
         onSettingsClicked: {
           window.settingsOpen = !window.settingsOpen;
         }
@@ -73,25 +74,36 @@ Window {
         }
       }
 
-      // 2. Filter Pills
-      FilterBar {
-        id: filterBar
-        width: parent.width
+      // Top Hairline Divider
+      Rectangle {
+        id: topDivider
+        anchors.top: searchBox.bottom
+        anchors.topMargin: 10
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 1
+        color: Qt.rgba(255, 255, 255, 0.07)
         visible: !window.settingsOpen
       }
 
-      Rectangle {
-        width: parent.width
-        height: 1
-        color: Qt.rgba(1, 1, 1, 0.08)
+      // 2. Status Bar at Bottom
+      StatusBar {
+        id: statusBar
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
         visible: !window.settingsOpen
       }
 
       // 3. Central Content Area
       Item {
         id: centralArea
-        width: parent.width
-        height: parent.height - (window.settingsOpen ? 60 : 138)
+        anchors.top: window.settingsOpen ? searchBox.bottom : topDivider.bottom
+        anchors.topMargin: 8
+        anchors.bottom: window.settingsOpen ? parent.bottom : statusBar.top
+        anchors.bottomMargin: 6
+        anchors.left: parent.left
+        anchors.right: parent.right
 
         // Settings Sheet
         SettingsSheet {
@@ -122,28 +134,29 @@ Window {
             anchors.centerIn: parent
             spacing: 8
 
-            Text {
+            Icon {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "🔎"
-              font.pixelSize: 32
-              opacity: 0.8
+              name: "search"
+              size: 24
+              color: "#5c5955"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "Quick File Search"
-              font.pixelSize: 16
-              font.bold: true
-              color: "#ffffff"
+              text: "Search Files & Documents"
+              font.pixelSize: 14
+              font.weight: Font.DemiBold
+              color: "#f5f5f5"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "Search across " + searchController.totalFiles + " indexed files in your folders.\nPress Ctrl+, to manage folders."
+              text: "Search naturally across all your code, documents, and media."
               font.pixelSize: 12
-              color: "#9a9996"
+              color: "#a8a6a3"
               horizontalAlignment: Text.AlignHCenter
-              lineHeight: 1.3
+              wrapMode: Text.WordWrap
+              width: Math.min(420, parent.width - 40)
             }
           }
         }
@@ -157,26 +170,29 @@ Window {
             anchors.centerIn: parent
             spacing: 8
 
-            Text {
+            Icon {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "📂"
-              font.pixelSize: 32
-              opacity: 0.6
+              name: "folder"
+              size: 24
+              color: "#5c5955"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "No Files Found"
-              font.pixelSize: 16
-              font.bold: true
-              color: "#ffffff"
+              text: "No Results Found"
+              font.pixelSize: 14
+              font.weight: Font.DemiBold
+              color: "#f5f5f5"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "Try broader keywords, switch filter pills, or verify indexed folders."
+              text: "Try broader keywords or verify indexed folders in settings."
               font.pixelSize: 12
-              color: "#9a9996"
+              color: "#a8a6a3"
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              width: Math.min(380, parent.width - 40)
             }
           }
         }
@@ -187,19 +203,6 @@ Window {
           anchors.fill: parent
           visible: !window.settingsOpen && searchBox.text.trim().length > 0 && searchController.resultsModel.rowCount() > 0
         }
-      }
-
-      Rectangle {
-        width: parent.width
-        height: 1
-        color: Qt.rgba(1, 1, 1, 0.08)
-        visible: !window.settingsOpen
-      }
-
-      // 4. Status Bar
-      StatusBar {
-        width: parent.width
-        visible: !window.settingsOpen
       }
     }
   }
@@ -215,36 +218,10 @@ Window {
     }
   }
 
-  // Global Key Shortcuts
   Connections {
     target: searchController
     function onFileOpened() {
       window.visible = false;
-    }
-  }
-
-  Shortcut {
-    sequence: "Ctrl+,"
-    onActivated: {
-      window.settingsOpen = !window.settingsOpen;
-    }
-  }
-
-  Shortcut {
-    sequence: "Ctrl+Return"
-    onActivated: {
-      if (!window.settingsOpen) {
-        resultsList.revealCurrent();
-      }
-    }
-  }
-
-  Shortcut {
-    sequence: "Ctrl+C"
-    onActivated: {
-      if (!window.settingsOpen) {
-        resultsList.copyCurrent();
-      }
     }
   }
 

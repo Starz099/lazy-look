@@ -124,17 +124,14 @@ Typing a prefix on its own (such as `code:` or `video:`) will list recent files 
 | `lazyfinder --enable-autostart` | Enable background autostart on system login |
 | `lazyfinder --disable-autostart` | Disable autostart on system login |
 
-## Keyboard Shortcuts
+## Keyboard Navigation
 
-| Shortcut | Description |
+| Key | Description |
 |---|---|
-| Ctrl + Shift + Space | Toggle search window visibility |
-| Up / Down | Navigate search results |
-| Return | Open selected file at matching page or timestamp |
-| Ctrl + Return | Open file location in file manager |
-| Ctrl + C | Copy file path to clipboard |
-| Ctrl + , | Open settings sheet |
-| Escape | Clear query, close settings, or hide window |
+| `Ctrl + Shift + Space` | Toggle LazyFinder floating search window |
+| `Up` / `Down` | Navigate search results |
+| `Return` | Open selected file at matching page or timestamp |
+| `Escape` | Dismiss search window or exit settings |
 
 ## License
 

@@ -57,7 +57,16 @@ Item {
     delegate: ResultDelegate {}
 
     ScrollBar.vertical: ScrollBar {
+      id: resultsScroll
       policy: ScrollBar.AsNeeded
+      width: 4
+      contentItem: Rectangle {
+        implicitWidth: 4
+        radius: 2
+        color: resultsScroll.pressed ? Qt.rgba(255, 255, 255, 0.4) : (resultsScroll.hovered ? Qt.rgba(255, 255, 255, 0.25) : Qt.rgba(255, 255, 255, 0.16))
+        Behavior on color { ColorAnimation { duration: 100 } }
+      }
+      background: Item {}
     }
 
     Connections {

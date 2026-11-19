@@ -20,12 +20,12 @@ qt_add_qml_module(lazyfinder
   QML_FILES
     qml/Main.qml
     qml/SearchBox.qml
-    qml/FilterBar.qml
     qml/ResultsList.qml
     qml/ResultDelegate.qml
     qml/SettingsSheet.qml
     qml/StatusBar.qml
     qml/OnboardingView.qml
+    qml/Icon.qml
 )
 
 target_link_libraries(lazyfinder

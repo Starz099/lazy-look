@@ -3,7 +3,7 @@ import QtQuick.Controls
 
 Item {
   id: root
-  height: 48
+  height: 46
 
   property alias text: input.text
   signal settingsClicked()
@@ -23,87 +23,55 @@ Item {
   }
 
   Rectangle {
+    id: boxContainer
     anchors.fill: parent
-    radius: 10
-    color: Qt.rgba(1, 1, 1, 0.05)
-    border.color: input.activeFocus ? "#3584e4" : Qt.rgba(1, 1, 1, 0.12)
-    border.width: input.activeFocus ? 2 : 1
+    radius: 9
+    color: "#242322"
+    border.color: input.activeFocus ? "#f59e0b" : Qt.rgba(255, 255, 255, 0.08)
+    border.width: 1
 
     Behavior on border.color {
       ColorAnimation { duration: 120 }
     }
 
-    Row {
-      anchors.fill: parent
+    // Leading Search Icon
+    Icon {
+      id: searchIcon
+      anchors.left: parent.left
       anchors.leftMargin: 12
+      anchors.verticalCenter: parent.verticalCenter
+      name: "search"
+      size: 16
+      color: (input.text.length > 0 || input.activeFocus) ? "#f59e0b" : "#8c8a87"
+
+      Behavior on color {
+        ColorAnimation { duration: 120 }
+      }
+    }
+
+    // Trailing Controls (Clear + Settings)
+    Row {
+      id: trailingControls
+      anchors.right: parent.right
       anchors.rightMargin: 8
-      spacing: 10
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: 4
 
-      // Search Icon
-      Text {
-        anchors.verticalCenter: parent.verticalCenter
-        text: "🔍"
-        font.pixelSize: 14
-        opacity: 0.6
-      }
-
-      // Main Text Input
-      TextInput {
-        id: input
-        width: parent.width - 96
-        anchors.verticalCenter: parent.verticalCenter
-        color: "#ffffff"
-        font.pixelSize: 16
-        font.weight: Font.Normal
-        selectByMouse: true
-        selectionColor: "#3584e4"
-        selectedTextColor: "#ffffff"
-        clip: true
-
-        Text {
-          anchors.fill: parent
-          anchors.verticalCenter: parent.verticalCenter
-          text: "Search files, documents, code..."
-          color: "#77767b"
-          font.pixelSize: 16
-          visible: input.text.length === 0 && !input.inputMethodComposing
-        }
-
-        onTextChanged: {
-          searchController.search(input.text);
-        }
-
-        Keys.onPressed: (event) => {
-          if (event.key === Qt.Key_Down) {
-            root.downPressed();
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Up) {
-            root.upPressed();
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.returnPressed();
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Escape) {
-            root.escapePressed();
-            event.accepted = true;
-          }
-        }
-      }
-
-      // Clear Button (visible if text entered)
+      // Clear button (shown when query is non-empty)
       Rectangle {
+        id: clearBtn
         width: 24
         height: 24
         radius: 12
         anchors.verticalCenter: parent.verticalCenter
-        color: clearMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
         visible: input.text.length > 0
+        color: clearMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent"
 
-        Text {
+        Icon {
           anchors.centerIn: parent
-          text: "✕"
-          font.pixelSize: 11
-          color: "#deddda"
+          name: "close"
+          size: 12
+          color: clearMouse.containsMouse ? "#f5f5f5" : "#a8a6a3"
         }
 
         MouseArea {
@@ -111,39 +79,78 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            root.clearText();
-          }
+          onClicked: root.clearText()
         }
       }
 
-      // Settings Button
+      // Settings button
       Rectangle {
-        width: 32
-        height: 32
+        id: settingsBtn
+        width: 28
+        height: 28
         radius: 6
         anchors.verticalCenter: parent.verticalCenter
-        color: settingsMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+        color: settingsMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : "transparent"
 
-        Text {
+        Icon {
           anchors.centerIn: parent
-          text: "⚙"
-          font.pixelSize: 16
-          color: settingsMouse.containsMouse ? "#ffffff" : "#9a9996"
+          name: "settings"
+          size: 14
+          color: settingsMouse.containsMouse ? "#f5f5f5" : "#a8a6a3"
         }
-
-        ToolTip.visible: settingsMouse.containsMouse
-        ToolTip.text: "Manage Indexed Folders (Ctrl+,)"
-        ToolTip.delay: 400
 
         MouseArea {
           id: settingsMouse
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            root.settingsClicked();
-          }
+          onClicked: root.settingsClicked()
+        }
+      }
+    }
+
+    // Search Query Input
+    TextInput {
+      id: input
+      anchors.left: searchIcon.right
+      anchors.leftMargin: 10
+      anchors.right: trailingControls.left
+      anchors.rightMargin: 8
+      anchors.verticalCenter: parent.verticalCenter
+      color: "#f5f5f5"
+      font.pixelSize: 15
+      font.weight: Font.Normal
+      selectByMouse: true
+      selectionColor: "#3f5675"
+      selectedTextColor: "#ffffff"
+      clip: true
+
+      Text {
+        anchors.fill: parent
+        anchors.verticalCenter: parent.verticalCenter
+        text: "Type to search"
+        color: "#6c6966"
+        font.pixelSize: 15
+        visible: input.text.length === 0 && !input.inputMethodComposing
+      }
+
+      onTextChanged: {
+        searchController.search(input.text);
+      }
+
+      Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Down) {
+          root.downPressed();
+          event.accepted = true;
+        } else if (event.key === Qt.Key_Up) {
+          root.upPressed();
+          event.accepted = true;
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+          root.returnPressed();
+          event.accepted = true;
+        } else if (event.key === Qt.Key_Escape) {
+          root.escapePressed();
+          event.accepted = true;
         }
       }
     }

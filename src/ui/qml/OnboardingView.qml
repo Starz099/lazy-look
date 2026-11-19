@@ -7,75 +7,77 @@ Item {
 
   Column {
     anchors.centerIn: parent
-    spacing: 12
-    width: parent.width - 64
+    spacing: 16
+    width: Math.min(440, parent.width - 48)
 
-    Text {
+    Column {
       anchors.horizontalCenter: parent.horizontalCenter
-      text: "⚡"
-      font.pixelSize: 36
-    }
-
-    Text {
-      anchors.horizontalCenter: parent.horizontalCenter
-      text: "Welcome to LazyFinder"
-      font.pixelSize: 18
-      font.bold: true
-      color: "#ffffff"
-    }
-
-    Text {
-      anchors.horizontalCenter: parent.horizontalCenter
-      text: "Instant semantic and keyword search across your local files.\nAdd folders in Settings to start indexing."
-      font.pixelSize: 13
-      color: "#9a9996"
-      horizontalAlignment: Text.AlignHCenter
-      lineHeight: 1.3
-    }
-
-    Rectangle {
-      anchors.horizontalCenter: parent.horizontalCenter
-      height: 24
-      width: modelBadgeText.implicitWidth + 16
-      radius: 12
-      visible: searchController.isModelInstalled
-      color: Qt.rgba(0.18, 0.76, 0.49, 0.15)
-      border.color: "#2ec27e"
-      border.width: 1
+      spacing: 6
+      width: parent.width
 
       Text {
-        id: modelBadgeText
-        anchors.centerIn: parent
-        text: "AI Semantic Search Ready"
-        font.pixelSize: 11
-        color: "#2ec27e"
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: "Welcome to LazyFinder"
+        font.pixelSize: 18
+        font.weight: Font.DemiBold
+        color: "#f5f5f5"
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: "Fast on-device semantic search for your documents, code, and media."
+        font.pixelSize: 13
+        color: "#a8a6a3"
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        width: parent.width
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: "Describe what you're looking for in natural language to find content across your files."
+        font.pixelSize: 12
+        color: "#8c8a87"
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        width: parent.width
       }
     }
 
-    // Interactive Download Card when model is not installed
+    // AI Model Download Section (When Missing)
     Column {
       anchors.horizontalCenter: parent.horizontalCenter
       spacing: 8
       visible: !searchController.isModelInstalled
-      width: Math.min(360, parent.width)
+      width: parent.width
 
       Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         height: 32
-        width: dlBtnText.implicitWidth + 24
-        radius: 16
-        color: dlMouse.containsMouse ? "#3584e4" : Qt.rgba(0.21, 0.52, 0.89, 0.2)
-        border.color: "#3584e4"
-        border.width: 1
+        width: dlBtnRow.implicitWidth + 24
+        radius: 6
+        color: dlMouse.containsMouse ? "#1d4ed8" : "#2563eb"
         visible: !searchController.isDownloadingModel
 
-        Text {
-          id: dlBtnText
+        Row {
+          id: dlBtnRow
           anchors.centerIn: parent
-          text: "⬇ Download AI Model (310 MB)"
-          font.pixelSize: 12
-          font.bold: true
-          color: "#ffffff"
+          spacing: 6
+
+          Icon {
+            anchors.verticalCenter: parent.verticalCenter
+            name: "download"
+            size: 13
+            color: "#ffffff"
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Download AI Model (310 MB)"
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            color: "#ffffff"
+          }
         }
 
         MouseArea {
@@ -89,6 +91,7 @@ Item {
         }
       }
 
+      // Download Progress
       Column {
         width: parent.width
         spacing: 6
@@ -96,15 +99,15 @@ Item {
 
         Rectangle {
           width: parent.width
-          height: 6
-          radius: 3
-          color: Qt.rgba(1, 1, 1, 0.1)
+          height: 4
+          radius: 2
+          color: Qt.rgba(255, 255, 255, 0.08)
 
           Rectangle {
             height: parent.height
-            radius: 3
+            radius: 2
             width: parent.width * (Math.max(0, Math.min(100, searchController.modelDownloadProgress)) / 100.0)
-            color: "#3584e4"
+            color: "#2563eb"
           }
         }
 
@@ -117,7 +120,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: searchController.modelDownloadStatus
             font.pixelSize: 10
-            color: "#deddda"
+            color: "#a8a6a3"
           }
 
           Text {
@@ -125,7 +128,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: "Cancel"
             font.pixelSize: 10
-            color: cancelDlMouse.containsMouse ? "#f66151" : "#9a9996"
+            color: cancelDlMouse.containsMouse ? "#ef4444" : "#8c8a87"
 
             MouseArea {
               id: cancelDlMouse
@@ -141,34 +144,35 @@ Item {
       }
     }
 
-    Item {
-      width: 1
-      height: 4
-    }
-
-    Rectangle {
+    // Subtle Link instead of Heavy Button
+    Row {
       anchors.horizontalCenter: parent.horizontalCenter
-      height: 36
-      width: btnText.implicitWidth + 32
-      radius: 18
-      color: btnMouse.containsMouse ? "#4793f0" : "#3584e4"
+      spacing: 5
 
       Text {
-        id: btnText
-        anchors.centerIn: parent
-        text: "📁 Setup Indexed Folders"
-        font.pixelSize: 13
-        font.bold: true
-        color: "#ffffff"
+        anchors.verticalCenter: parent.verticalCenter
+        text: "or"
+        font.pixelSize: 12
+        color: "#8c8a87"
       }
 
-      MouseArea {
-        id: btnMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: {
-          root.addFoldersClicked();
+      Text {
+        id: linkText
+        anchors.verticalCenter: parent.verticalCenter
+        text: "choose folders to index"
+        font.pixelSize: 12
+        font.weight: Font.Medium
+        color: linkMouse.containsMouse ? "#93c5fd" : "#60a5fa"
+        font.underline: linkMouse.containsMouse
+
+        MouseArea {
+          id: linkMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            root.addFoldersClicked();
+          }
         }
       }
     }
