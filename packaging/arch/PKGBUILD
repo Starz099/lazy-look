@@ -1,0 +1,32 @@
+# Maintainer: Mayank <mayankjod016@gmail.com>
+pkgname=lazyfinder
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Instant AI & Hybrid Desktop Search for Linux (Qt 6, C++20, Vulkan)"
+arch=('x86_64')
+url="https://github.com/Starz099/lazy-finder"
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'vulkan-icd-loader' 'sqlite')
+optdepends=(
+    'ffmpeg: Video keyframe thumbnail generation and metadata extraction'
+    'mpv: Instant seek video playback'
+    'vlc: Video playback at search result timestamp'
+    'celluloid: GNOME video playback'
+    'totem: GNOME default video player'
+)
+makedepends=('cmake' 'ninja' 'git' 'vulkan-headers' 'gcc')
+provides=('lazyfinder')
+conflicts=('lazyfinder-git')
+source=("lazyfinder-${pkgver}.tar.gz::https://github.com/Starz099/lazy-finder/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cmake -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build
+}
+
+package() {
+    DESTDIR="${pkgdir}" cmake --install build
+}

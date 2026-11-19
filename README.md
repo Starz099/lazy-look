@@ -8,26 +8,39 @@ LazyFinder is a local file search tool for Linux desktop environments. It allows
 - Deep file navigation and format support:
   - Documents and Code: Supports .pdf (opens directly to matching page in Papers, Evince, Okular), .pptx and .odp (opens to matching slide in LibreOffice), .docx, .xlsx, .odt, .ods, .epub, .rtf, HTML, Markdown, and common programming languages.
   - Images and Vision: Indexes .png, .jpg, .jpeg, .webp, .bmp, .gif, .tiff, and .svg with dimension extraction, EXIF metadata (camera, dates), and vector embeddings.
-  - Video and Audio: Indexes .mp4, .mkv, .webm, .avi, .mov, .mp3, .wav, .flac, .ogg with companion or embedded subtitle tracks (.srt, .vtt), opening directly at the matching timestamp in VLC or mpv.
+  - Video and Audio: Indexes .mp4, .mkv, .webm, .avi, .mov, .mp3, .wav, .flac, .ogg with companion or embedded subtitle tracks (.srt, .vtt), container chapters, and scene keyframe thumbnail generation, opening directly at the matching timestamp in mpv, VLC, Celluloid, or Totem.
 - Background daemon: Runs as a single instance with low resource usage. The neural model automatically unloads from GPU VRAM and RAM after 5 minutes of inactivity.
 - Wayland-friendly global shortcut: Toggle the search window using Ctrl + Shift + Space. The shortcut is only registered with GNOME while LazyFinder is running, releasing the key combination when the application exits.
 
 ## Installation
 
-### Fedora and RHEL (.rpm)
+### Fedora, RHEL, and openSUSE (.rpm)
 
 Download the `.rpm` package from the releases page and install:
 
 ```bash
+# Fedora / RHEL
 sudo dnf install ./lazyfinder-0.1.0-x86_64.rpm
+
+# openSUSE
+sudo zypper install ./lazyfinder-0.1.0-x86_64.rpm
 ```
 
-### Ubuntu and Debian (.deb)
+### Ubuntu, Debian, Linux Mint, and Pop!_OS (.deb)
 
 Download the `.deb` package from the releases page and install:
 
 ```bash
 sudo apt install ./lazyfinder-0.1.0-amd64.deb
+```
+
+### Arch Linux, Manjaro, and EndeavourOS (PKGBUILD)
+
+Install via the included Arch package definition:
+
+```bash
+cd packaging/arch
+makepkg -si
 ```
 
 ### Universal Linux (.AppImage)
@@ -82,6 +95,21 @@ cd build && cpack -G DEB
 # Or build all three at once
 ./scripts/package_all.sh
 ```
+
+## Search Prefixes & Filters
+
+You can filter results to specific file categories by prefixing your search query:
+
+| Prefix | Target Category | Example |
+|---|---|---|
+| `code:` or `type:code` | Source code files only | `code: calculate_hash` |
+| `doc:` or `pdf:` | Documents, PDFs, and presentations | `doc: quarterly report` |
+| `image:` or `img:` | Images and vector graphics | `image: architecture diagram` |
+| `video:` or `vid:` | Video files and scene keyframes | `video: conference talk` |
+| `audio:` or `sound:` | Audio recordings, podcasts, and music | `audio: episode 42` |
+| `media:` or `type:media` | Audio and video media files | `media: keynote presentation` |
+
+Typing a prefix on its own (such as `code:` or `video:`) will list recent files of that type.
 
 ## Command-Line Usage
 

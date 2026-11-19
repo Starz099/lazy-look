@@ -219,6 +219,126 @@ std::string make_contextual_snippet(std::string_view raw_content,
   return badge + snippet;
 }
 
+ParsedQuery do_parse_query_category(std::string_view query)
+{
+  ParsedQuery result;
+  std::string_view q = query;
+  while (!q.empty() && std::isspace(static_cast<unsigned char>(q.front()))) {
+    q.remove_prefix(1);
+  }
+
+  auto check_prefix = [&](std::string_view prefix, QueryCategory cat) -> bool {
+    if (q.size() >= prefix.size()) {
+      std::string lower_start;
+      for (size_t i = 0; i < prefix.size(); ++i) {
+        lower_start.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(q[i]))));
+      }
+      if (lower_start == prefix) {
+        result.category = cat;
+        q.remove_prefix(prefix.size());
+        while (!q.empty() && std::isspace(static_cast<unsigned char>(q.front()))) {
+          q.remove_prefix(1);
+        }
+        result.text = std::string(q);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (check_prefix("code:", QueryCategory::Code) ||
+      check_prefix("type:code", QueryCategory::Code) ||
+      check_prefix("doc:", QueryCategory::Document) ||
+      check_prefix("docs:", QueryCategory::Document) ||
+      check_prefix("pdf:", QueryCategory::Document) ||
+      check_prefix("type:doc", QueryCategory::Document) ||
+      check_prefix("type:docs", QueryCategory::Document) ||
+      check_prefix("type:pdf", QueryCategory::Document) ||
+      check_prefix("image:", QueryCategory::Image) || check_prefix("img:", QueryCategory::Image) ||
+      check_prefix("photo:", QueryCategory::Image) ||
+      check_prefix("type:image", QueryCategory::Image) ||
+      check_prefix("type:img", QueryCategory::Image) ||
+      check_prefix("type:photo", QueryCategory::Image) ||
+      check_prefix("video:", QueryCategory::Video) || check_prefix("vid:", QueryCategory::Video) ||
+      check_prefix("movie:", QueryCategory::Video) ||
+      check_prefix("type:video", QueryCategory::Video) ||
+      check_prefix("type:vid", QueryCategory::Video) ||
+      check_prefix("audio:", QueryCategory::Audio) ||
+      check_prefix("sound:", QueryCategory::Audio) ||
+      check_prefix("music:", QueryCategory::Audio) ||
+      check_prefix("type:audio", QueryCategory::Audio) ||
+      check_prefix("media:", QueryCategory::Media) ||
+      check_prefix("type:media", QueryCategory::Media)) {
+    return result;
+  }
+
+  result.category = QueryCategory::All;
+  result.text = std::string(q);
+  return result;
+}
+
+bool do_path_matches_category(std::string_view path, QueryCategory category)
+{
+  if (category == QueryCategory::All || path.empty()) {
+    return true;
+  }
+  std::filesystem::path p(path);
+  std::string ext = p.extension().string();
+  std::transform(
+      ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+
+  if (category == QueryCategory::Code) {
+    static const std::unordered_set<std::string> code_exts = {
+        ".cpp",  ".cc",   ".cxx",  ".c",   ".h",   ".hh",   ".hpp", ".py",   ".rs",
+        ".go",   ".js",   ".ts",   ".jsx", ".tsx", ".java", ".kt",  ".cs",   ".swift",
+        ".sh",   ".bash", ".zsh",  ".lua", ".rb",  ".php",  ".sql", ".html", ".css",
+        ".json", ".toml", ".yaml", ".yml", ".xml", ".cmake"};
+    return code_exts.contains(ext);
+  }
+  if (category == QueryCategory::Document) {
+    static const std::unordered_set<std::string> doc_exts = {".pdf",
+                                                             ".docx",
+                                                             ".doc",
+                                                             ".xlsx",
+                                                             ".xls",
+                                                             ".pptx",
+                                                             ".ppt",
+                                                             ".odt",
+                                                             ".ods",
+                                                             ".odp",
+                                                             ".epub",
+                                                             ".rtf",
+                                                             ".txt",
+                                                             ".md",
+                                                             ".org",
+                                                             ".rst",
+                                                             ".tex"};
+    return doc_exts.contains(ext);
+  }
+  if (category == QueryCategory::Image) {
+    static const std::unordered_set<std::string> img_exts = {
+        ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".svg", ".ico"};
+    return img_exts.contains(ext);
+  }
+  if (category == QueryCategory::Video) {
+    static const std::unordered_set<std::string> vid_exts = {
+        ".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg"};
+    return vid_exts.contains(ext);
+  }
+  if (category == QueryCategory::Audio) {
+    static const std::unordered_set<std::string> aud_exts = {
+        ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".opus", ".wma"};
+    return aud_exts.contains(ext);
+  }
+  if (category == QueryCategory::Media) {
+    static const std::unordered_set<std::string> media_exts = {
+        ".mp4", ".mkv", ".webm", ".avi",  ".mov", ".flv", ".wmv",  ".m4v", ".mpg", ".mpeg",
+        ".mp3", ".wav", ".ogg",  ".flac", ".m4a", ".aac", ".opus", ".wma", ".srt", ".vtt"};
+    return media_exts.contains(ext);
+  }
+  return true;
+}
+
 std::string sanitize_fts_query(std::string_view query)
 {
   std::vector<std::string> terms;
@@ -332,6 +452,16 @@ std::string default_database_path()
   return "index.db";
 }
 
+ParsedQuery Database::parse_query_category(std::string_view query)
+{
+  return do_parse_query_category(query);
+}
+
+bool Database::path_matches_category(std::string_view path, QueryCategory category)
+{
+  return do_path_matches_category(path, category);
+}
+
 struct Database::Impl
 {
   sqlite3 *db = nullptr;
@@ -422,7 +552,9 @@ bool Database::init_schema()
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       chunk_index INTEGER NOT NULL,
-      content TEXT NOT NULL
+      content TEXT NOT NULL,
+      page_number INTEGER DEFAULT 0,
+      thumbnail_path TEXT DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id);
 
@@ -454,6 +586,18 @@ bool Database::init_schema()
     }
     return false;
   }
+
+  // Schema migration for existing databases
+  sqlite3_exec(impl_->db,
+               "ALTER TABLE chunks ADD COLUMN page_number INTEGER DEFAULT 0;",
+               nullptr,
+               nullptr,
+               nullptr);
+  sqlite3_exec(impl_->db,
+               "ALTER TABLE chunks ADD COLUMN thumbnail_path TEXT DEFAULT '';",
+               nullptr,
+               nullptr,
+               nullptr);
 
   return true;
 }
@@ -572,7 +716,7 @@ bool Database::remove_directory(std::string_view dir_path)
 }
 
 std::optional<std::vector<int64_t>> Database::insert_file_chunks(
-    std::string_view path, int64_t size, int64_t mtime, const std::vector<std::string> &chunks)
+    std::string_view path, int64_t size, int64_t mtime, const std::vector<ChunkRecord> &chunks)
 {
   if (!is_open() || chunks.empty()) {
     return std::nullopt;
@@ -605,7 +749,8 @@ std::optional<std::vector<int64_t>> Database::insert_file_chunks(
 
   const int64_t file_id = sqlite3_last_insert_rowid(impl_->db);
 
-  const char *ins_chunk_sql = "INSERT INTO chunks(file_id, chunk_index, content) VALUES (?, ?, ?);";
+  const char *ins_chunk_sql = "INSERT INTO chunks(file_id, chunk_index, content, page_number, "
+                              "thumbnail_path) VALUES (?, ?, ?, ?, ?);";
   sqlite3_stmt *chunk_stmt = nullptr;
   if (sqlite3_prepare_v2(impl_->db, ins_chunk_sql, -1, &chunk_stmt, nullptr) != SQLITE_OK) {
     sqlite3_exec(impl_->db, "ROLLBACK;", nullptr, nullptr, nullptr);
@@ -619,8 +764,17 @@ std::optional<std::vector<int64_t>> Database::insert_file_chunks(
     sqlite3_reset(chunk_stmt);
     sqlite3_bind_int64(chunk_stmt, 1, file_id);
     sqlite3_bind_int(chunk_stmt, 2, static_cast<int>(i));
-    sqlite3_bind_text(
-        chunk_stmt, 3, chunks[i].data(), static_cast<int>(chunks[i].size()), SQLITE_STATIC);
+    sqlite3_bind_text(chunk_stmt,
+                      3,
+                      chunks[i].text.data(),
+                      static_cast<int>(chunks[i].text.size()),
+                      SQLITE_STATIC);
+    sqlite3_bind_int(chunk_stmt, 4, chunks[i].page_number);
+    sqlite3_bind_text(chunk_stmt,
+                      5,
+                      chunks[i].thumbnail_path.data(),
+                      static_cast<int>(chunks[i].thumbnail_path.size()),
+                      SQLITE_STATIC);
 
     if (sqlite3_step(chunk_stmt) != SQLITE_DONE) {
       sqlite3_finalize(chunk_stmt);
@@ -635,6 +789,17 @@ std::optional<std::vector<int64_t>> Database::insert_file_chunks(
   sqlite3_exec(impl_->db, "COMMIT;", nullptr, nullptr, nullptr);
 
   return chunk_ids;
+}
+
+std::optional<std::vector<int64_t>> Database::insert_file_chunks(
+    std::string_view path, int64_t size, int64_t mtime, const std::vector<std::string> &chunks)
+{
+  std::vector<ChunkRecord> records;
+  records.reserve(chunks.size());
+  for (const auto &c : chunks) {
+    records.push_back(ChunkRecord{c, 0, ""});
+  }
+  return insert_file_chunks(path, size, mtime, records);
 }
 
 bool Database::insert_chunk_embedding(int64_t chunk_id, const std::vector<float> &embedding)
@@ -688,23 +853,28 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   }
   std::lock_guard<std::recursive_mutex> lock(impl_->mutex);
 
+  const ParsedQuery parsed = parse_query_category(query_text);
+
   struct Candidate
   {
     std::string path;
     std::string snippet;
     double rrf_score = 0.0;
     int chunk_index = 0;
+    int page_number = 0;
+    std::string thumbnail_path;
     std::string best_content;
     int best_rank = 99999;
   };
   std::unordered_map<int64_t, Candidate> candidates;
 
-  const int top_k = static_cast<int>(limit * 3);
+  const int top_k = parsed.category != QueryCategory::All ? static_cast<int>(limit * 10)
+                                                          : static_cast<int>(limit * 3);
 
   // 1. Dense Vector kNN Search
   if (!query_embedding.empty()) {
     const char *vec_sql = R"(
-      SELECT c.file_id, c.chunk_index, c.content, f.path
+      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
       FROM vec_chunks v
       JOIN chunks c ON c.id = v.chunk_id
       JOIN files f ON f.id = c.file_id
@@ -724,10 +894,16 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
       int rank = 1;
       std::unordered_set<int64_t> seen_vec_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+        if (path_str && !path_matches_category(path_str, parsed.category)) {
+          continue;
+        }
+
         int64_t fid = sqlite3_column_int64(stmt, 0);
         int chunk_idx = sqlite3_column_int(stmt, 1);
         const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
-        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+        int page_num = sqlite3_column_int(stmt, 4);
+        const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
 
         auto &cand = candidates[fid];
         cand.path = path_str ? path_str : "";
@@ -735,6 +911,10 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
           cand.best_rank = rank;
           cand.chunk_index = chunk_idx;
           cand.best_content = content_str;
+          cand.page_number = page_num;
+          if (thumb_str) {
+            cand.thumbnail_path = thumb_str;
+          }
         }
         if (seen_vec_files.insert(fid).second) {
           cand.rrf_score += 1.0 / (60.0 + rank);
@@ -746,10 +926,11 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   }
 
   // 2. Sparse Lexical Search (FTS5 BM25)
-  const std::string fts_query = sanitize_fts_query(query_text);
+  const std::string clean_fts_text = parsed.text.empty() ? std::string(query_text) : parsed.text;
+  const std::string fts_query = sanitize_fts_query(clean_fts_text);
   if (!fts_query.empty()) {
     const char *fts_sql = R"(
-      SELECT c.file_id, c.chunk_index, c.content, f.path
+      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
       FROM chunks_fts fts
       JOIN chunks c ON c.id = fts.rowid
       JOIN files f ON f.id = c.file_id
@@ -766,10 +947,16 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
       int rank = 1;
       std::unordered_set<int64_t> seen_fts_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+        if (path_str && !path_matches_category(path_str, parsed.category)) {
+          continue;
+        }
+
         int64_t fid = sqlite3_column_int64(stmt, 0);
         int chunk_idx = sqlite3_column_int(stmt, 1);
         const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
-        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+        int page_num = sqlite3_column_int(stmt, 4);
+        const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
 
         auto &cand = candidates[fid];
         cand.path = path_str ? path_str : "";
@@ -777,10 +964,58 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
           cand.best_rank = rank;
           cand.chunk_index = chunk_idx;
           cand.best_content = content_str;
+          cand.page_number = page_num;
+          if (thumb_str) {
+            cand.thumbnail_path = thumb_str;
+          }
         }
         if (seen_fts_files.insert(fid).second) {
           cand.rrf_score += 1.0 / (60.0 + rank);
           ++rank;
+        }
+      }
+      sqlite3_finalize(stmt);
+    }
+  }
+
+  // 3. Category browsing fallback (e.g., query was just "code:" or "image:")
+  if (candidates.empty() && parsed.category != QueryCategory::All && parsed.text.empty()) {
+    const char *recent_sql = R"(
+      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
+      FROM chunks c
+      JOIN files f ON f.id = c.file_id
+      WHERE c.chunk_index = 0
+      ORDER BY f.mtime DESC
+      LIMIT ?;
+    )";
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(impl_->db, recent_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+      sqlite3_bind_int(stmt, 1, static_cast<int>(limit * 5));
+      int rank = 1;
+      while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+        if (!path_matches_category(path_str ? path_str : "", parsed.category)) {
+          continue;
+        }
+        int64_t fid = sqlite3_column_int64(stmt, 0);
+        int chunk_idx = sqlite3_column_int(stmt, 1);
+        const char *content_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+        int page_num = sqlite3_column_int(stmt, 4);
+        const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
+
+        auto &cand = candidates[fid];
+        cand.path = path_str ? path_str : "";
+        cand.best_rank = rank;
+        cand.chunk_index = chunk_idx;
+        cand.best_content = content_str ? content_str : "";
+        cand.page_number = page_num;
+        if (thumb_str) {
+          cand.thumbnail_path = thumb_str;
+        }
+        cand.rrf_score = 1.0 / (60.0 + rank);
+        ++rank;
+        if (candidates.size() >= limit) {
+          break;
         }
       }
       sqlite3_finalize(stmt);
@@ -839,14 +1074,17 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     std::transform(
         ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
 
-    int page_num = 0;
-    if (ext == ".pdf" || ext == ".pptx" || ext == ".odp") {
-      page_num = cand.chunk_index + 1;
-    }
-    else {
-      page_num = parse_timestamp_from_text(cand.best_content, cand.best_content.find(query_text));
+    int page_num = cand.page_number;
+    if (page_num <= 0) {
+      if (ext == ".pdf" || ext == ".pptx" || ext == ".odp") {
+        page_num = cand.chunk_index + 1;
+      }
+      else {
+        page_num = parse_timestamp_from_text(cand.best_content, cand.best_content.find(query_text));
+      }
     }
     res.page_number = page_num;
+    res.thumbnail_path = std::move(cand.thumbnail_path);
 
     if (!cand.best_content.empty()) {
       res.snippet = make_contextual_snippet(cand.best_content, query_text, page_num, ext);

@@ -111,15 +111,16 @@ void parse_svg_info(const std::filesystem::path &path, ImageMetadata &meta)
     if (pos == std::string_view::npos) {
       return {};
     }
-    const size_t quote1 = tag.find('"', pos + attr.size());
-    if (quote1 == std::string_view::npos) {
+    const size_t qpos = tag.find_first_of("\"'", pos + attr.size());
+    if (qpos == std::string_view::npos) {
       return {};
     }
-    const size_t quote2 = tag.find('"', quote1 + 1);
-    if (quote2 == std::string_view::npos) {
+    const char quote = tag[qpos];
+    const size_t qend = tag.find(quote, qpos + 1);
+    if (qend == std::string_view::npos) {
       return {};
     }
-    return std::string(tag.substr(quote1 + 1, quote2 - quote1 - 1));
+    return std::string(tag.substr(qpos + 1, qend - qpos - 1));
   };
 
   const size_t svg_start = content.find("<svg");

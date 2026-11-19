@@ -19,6 +19,7 @@ struct DisplayResult
   QString category; // "all", "doc", "code", "media", "other"
   QString iconName;
   int pageNumber = 0;
+  QString thumbnailPath;
 };
 
 class ResultsModel : public QAbstractListModel
@@ -35,7 +36,8 @@ public:
     SnippetRole,
     CategoryRole,
     IconNameRole,
-    PageNumberRole
+    PageNumberRole,
+    ThumbnailPathRole
   };
 
   explicit ResultsModel(QObject *parent = nullptr);

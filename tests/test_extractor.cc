@@ -40,6 +40,21 @@ void write_file(const std::filesystem::path &path, std::string_view content)
   out.write(content.data(), static_cast<std::streamsize>(content.size()));
 }
 
+std::string shell_escape(std::string_view arg)
+{
+  std::string escaped = "'";
+  for (char c : arg) {
+    if (c == '\'') {
+      escaped += "'\\''";
+    }
+    else {
+      escaped.push_back(c);
+    }
+  }
+  escaped += "'";
+  return escaped;
+}
+
 void setup_test_archives(const std::filesystem::path &dir)
 {
   std::string cmd =
@@ -463,6 +478,18 @@ void test_image_pipeline(const std::filesystem::path &dir)
   TEST_ASSERT(bmp_chunks[0].find("BMP") != std::string::npos, "BMP format detected");
   TEST_ASSERT(bmp_chunks[0].find("2x2") != std::string::npos, "BMP dimensions 2x2 extracted");
 
+  // 3. SVG with single quotes in attributes
+  const auto single_quote_svg = dir / "single_quote.svg";
+  write_file(single_quote_svg,
+             "<svg xmlns='http://www.w3.org/2000/svg' width='640' height='480'>\n"
+             "  <title>Architecture Overview</title>\n"
+             "</svg>\n");
+  auto sq_meta = lazyfinder::ImageHandler::extract_metadata(single_quote_svg);
+  TEST_ASSERT(sq_meta.width == 640 && sq_meta.height == 480,
+              "Extracted SVG dimensions with single quotes");
+  TEST_ASSERT(sq_meta.text_content.find("Architecture Overview") != std::string::npos,
+              "Extracted title text from single quote SVG");
+
   std::cout << "  ✓ Image and vision pipeline extraction passed." << std::endl;
 }
 
@@ -518,6 +545,194 @@ void test_pipeline_architecture()
               "Custom handler processed successfully");
 
   std::cout << "  ✓ OOP Pipeline Registry and polymorphic extension passed." << std::endl;
+}
+
+void test_video_pipeline(const std::filesystem::path &dir)
+{
+  std::cout << "[Test] Video Pipeline: Chapters, Timecodes, and Thumbnails..." << std::endl;
+
+  // 1. Timecode formatting
+  TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(0) == "00:00", "0s -> 00:00");
+  TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(59) == "00:59", "59s -> 00:59");
+  TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(83) == "01:23", "83s -> 01:23");
+  TEST_ASSERT(lazyfinder::MediaHandler::format_timecode(3665) == "01:01:05", "3665s -> 01:01:05");
+
+  // 2. Chapter parsing from ffmetadata
+  std::string metadata_sample = ";FFMETADATA1\n"
+                                "title=Engineering Presentation\n"
+                                "[CHAPTER]\n"
+                                "TIMEBASE=1/1000\n"
+                                "START=0\n"
+                                "END=30000\n"
+                                "title=Overview and Goals\n"
+                                "[CHAPTER]\n"
+                                "TIMEBASE=1/1000\n"
+                                "START=30000\n"
+                                "END=95000\n"
+                                "title=Architecture Deep Dive\n"
+                                "[CHAPTER]\n"
+                                "TIMEBASE=1/1\n"
+                                "START=120\n"
+                                "END=180\n"
+                                "title=Q&A and Next Steps\n";
+
+  auto chapters = lazyfinder::MediaHandler::parse_ffmetadata_chapters(metadata_sample);
+  TEST_ASSERT(chapters.size() == 3, "Parsed 3 chapters from metadata");
+  TEST_ASSERT(chapters[0].start_seconds == 0, "Chapter 0 starts at 0s");
+  TEST_ASSERT(chapters[0].title == "Overview and Goals", "Chapter 0 title matches");
+  TEST_ASSERT(chapters[1].start_seconds == 30, "Chapter 1 starts at 30s");
+  TEST_ASSERT(chapters[1].title == "Architecture Deep Dive", "Chapter 1 title matches");
+  TEST_ASSERT(chapters[2].start_seconds == 120, "Chapter 2 starts at 120s");
+  TEST_ASSERT(chapters[2].title == "Q&A and Next Steps", "Chapter 2 title matches");
+
+  // 3. Thumbnails directory resolution
+  auto thumb_dir = lazyfinder::MediaHandler::thumbnails_directory();
+  TEST_ASSERT(!thumb_dir.empty(), "Thumbnails directory path non-empty");
+  std::error_code ec;
+  TEST_ASSERT(std::filesystem::exists(thumb_dir, ec), "Thumbnails directory exists on disk");
+
+  // 4. Video processing with companion subtitles
+  const auto test_vid = dir / "clip.mp4";
+  write_file(test_vid, "dummy mp4 header");
+  const auto test_sub = dir / "clip.srt";
+  write_file(test_sub,
+             "1\n00:00:10,000 --> 00:00:15,000\nFirst video segment.\n\n"
+             "2\n00:01:45,000 --> 00:01:50,000\nSecond video segment.\n");
+
+  lazyfinder::MediaHandler handler;
+  auto processed = handler.process(test_vid);
+  TEST_ASSERT(!processed.chunks.empty(), "Processed video with companion subtitles has chunks");
+  TEST_ASSERT(processed.chunks[0].text.find("clip.mp4") != std::string::npos,
+              "Chunk has video filename");
+  TEST_ASSERT(processed.chunks[0].page_or_timestamp == 10, "First chunk timestamp is 10s");
+
+  // 5. Robust subtitle parsing edge cases: markup tags & missing blank line
+  std::string srt_edge_case = "1\n"
+                              "00:00:05,500 --> 00:00:09,000\n"
+                              "<i>Welcome to</i> <b>LazyFinder</b>!\n"
+                              "2\n"
+                              "00:00:10,000 --> 00:00:15,000\n"
+                              "<v Speaker>Direct speech without blank line.</v>\n";
+  auto edge_cues = lazyfinder::MediaHandler::parse_subtitles(srt_edge_case);
+  TEST_ASSERT(edge_cues.size() == 2, "Parsed 2 cues despite missing blank line");
+  TEST_ASSERT(edge_cues[0].text == "Welcome to LazyFinder!", "Stripped HTML tags from cue 0");
+  TEST_ASSERT(edge_cues[1].text == "Direct speech without blank line.",
+              "Stripped VTT tags from cue 1");
+  TEST_ASSERT(edge_cues[1].seconds == 10, "Cue 1 timestamp is 10s");
+
+  // 6. Untitled video chapters
+  std::string untitled_metadata = ";FFMETADATA1\n"
+                                  "[CHAPTER]\n"
+                                  "TIMEBASE=1/1000\n"
+                                  "START=5000\n"
+                                  "END=15000\n";
+  auto untitled_chaps = lazyfinder::MediaHandler::parse_ffmetadata_chapters(untitled_metadata);
+  TEST_ASSERT(untitled_chaps.size() == 1, "Parsed untitled chapter");
+  TEST_ASSERT(untitled_chaps[0].title == "Chapter 1", "Untitled chapter assigned default name");
+  TEST_ASSERT(untitled_chaps[0].start_seconds == 5, "Untitled chapter starts at 5s");
+
+  // 7. WebVTT subtitle parsing with dot timecodes and mm:ss format
+  std::string vtt_sample = "WEBVTT\n\n"
+                           "NOTE This is an editorial note\n\n"
+                           "00:01.250 --> 00:03.500\n"
+                           "First WebVTT cue line.\n\n"
+                           "01:15.000 --> 01:20.000\n"
+                           "Second WebVTT cue line.\n";
+  auto vtt_cues = lazyfinder::MediaHandler::parse_subtitles(vtt_sample);
+  TEST_ASSERT(vtt_cues.size() == 2, "Parsed 2 WebVTT cues");
+  TEST_ASSERT(vtt_cues[0].seconds == 1, "WebVTT cue 0 at 1s");
+  TEST_ASSERT(vtt_cues[0].text == "First WebVTT cue line.", "WebVTT cue 0 text");
+  TEST_ASSERT(vtt_cues[1].seconds == 75, "WebVTT cue 1 at 75s (01:15)");
+  TEST_ASSERT(vtt_cues[1].badge == "01:15", "WebVTT cue 1 badge matches");
+
+  // 8. End-to-end real synthetic video generation and thumbnail extraction
+  const auto synth_vid = dir / "synthetic.mp4";
+  const std::string gen_cmd =
+      "ffmpeg -f lavfi -i testsrc=duration=4:size=320x240:rate=10 -f lavfi -i "
+      "sine=frequency=1000:duration=4 -c:v libx264 -c:a aac -pix_fmt yuv420p -y " +
+      shell_escape(synth_vid.string()) + " 2>/dev/null";
+  int gen_ret = std::system(gen_cmd.c_str());
+  if (gen_ret == 0 && std::filesystem::exists(synth_vid)) {
+    // Probe real video metadata
+    auto meta = lazyfinder::MediaHandler::probe_metadata(synth_vid);
+    TEST_ASSERT(meta.duration_seconds >= 3, "Synthetic video duration probed >= 3s");
+    TEST_ASSERT(meta.width == 320 && meta.height == 240, "Synthetic video resolution is 320x240");
+    TEST_ASSERT(meta.codec.find("h264") != std::string::npos, "Synthetic video codec is h264");
+
+    // Generate real keyframe thumbnail
+    std::string thumb = lazyfinder::MediaHandler::generate_keyframe_thumbnail(synth_vid, 1);
+    TEST_ASSERT(!thumb.empty(), "Generated thumbnail path non-empty");
+    std::error_code ec;
+    TEST_ASSERT(std::filesystem::exists(thumb, ec), "Thumbnail JPEG exists on disk");
+    TEST_ASSERT(std::filesystem::file_size(thumb, ec) > 100, "Thumbnail file size > 100 bytes");
+
+    // Verify thumbnail caching (second call returns existing file immediately)
+    std::string cached_thumb = lazyfinder::MediaHandler::generate_keyframe_thumbnail(synth_vid, 1);
+    TEST_ASSERT(cached_thumb == thumb, "Thumbnail cache hit returned identical path");
+
+    // Process synthetic video without subtitles -> verifies scene keyframe chunks
+    auto vid_processed = handler.process(synth_vid);
+    TEST_ASSERT(!vid_processed.chunks.empty(),
+                "Video without subtitles produces scene keyframe chunks");
+    TEST_ASSERT(vid_processed.chunks[0].text.find("Video Scene") != std::string::npos,
+                "Scene description present in chunk");
+    TEST_ASSERT(!vid_processed.chunks[0].thumbnail_path.empty(),
+                "Scene chunk has generated thumbnail path");
+
+    // Test embedded subtitle stream extraction via ffmpeg
+    const auto synth_sub = dir / "embedded.srt";
+    write_file(synth_sub, "1\n00:00:01,000 --> 00:00:03,000\nEmbedded subtitle stream verified.\n");
+    const auto synth_with_sub = dir / "synth_with_sub.mp4";
+    const std::string mux_cmd = "ffmpeg -i " + shell_escape(synth_vid.string()) + " -i " +
+                                shell_escape(synth_sub.string()) +
+                                " -c:v copy -c:a copy -c:s mov_text -y " +
+                                shell_escape(synth_with_sub.string()) + " 2>/dev/null";
+    if (std::system(mux_cmd.c_str()) == 0 && std::filesystem::exists(synth_with_sub)) {
+      auto mux_processed = handler.process(synth_with_sub);
+      TEST_ASSERT(!mux_processed.chunks.empty(), "Muxed video has extracted chunks");
+      bool found_embedded = false;
+      for (const auto &chunk : mux_processed.chunks) {
+        if (chunk.text.find("Embedded subtitle stream verified") != std::string::npos) {
+          found_embedded = true;
+          TEST_ASSERT(chunk.page_or_timestamp == 1, "Embedded cue timestamp is 1s");
+          break;
+        }
+      }
+      TEST_ASSERT(found_embedded, "Embedded subtitle stream successfully extracted via ffmpeg");
+    }
+  }
+
+  std::cout << "  ✓ Video pipeline chapters, timecodes, and metadata passed." << std::endl;
+}
+
+void test_audio_pipeline(const std::filesystem::path &dir)
+{
+  std::cout << "[Test] Audio Pipeline: Slicing, Windowing, and Speech Hooks..." << std::endl;
+
+  // 1. Audio window slicing (30s windows with 15s hop)
+  auto slices = lazyfinder::MediaHandler::slice_audio_windows("fake.mp3", 95);
+  TEST_ASSERT(slices.size() == 6, "Sliced 95s audio into 6 overlapping windows");
+  TEST_ASSERT(slices[0].start_seconds == 0 && slices[0].end_seconds == 30, "Window 0: 0-30s");
+  TEST_ASSERT(slices[0].badge == "00:00", "Window 0 badge is 00:00");
+  TEST_ASSERT(slices[1].start_seconds == 15 && slices[1].end_seconds == 45, "Window 1: 15-45s");
+  TEST_ASSERT(slices[1].badge == "00:15", "Window 1 badge is 00:15");
+  TEST_ASSERT(slices[5].start_seconds == 75 && slices[5].end_seconds == 95, "Window 5: 75-95s");
+
+  // 2. Synthetic audio file processing with ffmpeg
+  const auto synth_audio = dir / "podcast.mp3";
+  const std::string gen_audio =
+      "ffmpeg -f lavfi -i sine=frequency=440:duration=5 -c:a libmp3lame -y " +
+      shell_escape(synth_audio.string()) + " 2>/dev/null";
+  if (std::system(gen_audio.c_str()) == 0 && std::filesystem::exists(synth_audio)) {
+    lazyfinder::MediaHandler handler;
+    auto processed = handler.process(synth_audio);
+    TEST_ASSERT(!processed.chunks.empty(), "Processed audio has chunks");
+    TEST_ASSERT(processed.chunks[0].text.find("podcast.mp3") != std::string::npos,
+                "Chunk has audio filename");
+    TEST_ASSERT(processed.category == lazyfinder::FileCategory::Media, "Category is Media");
+  }
+
+  std::cout << "  ✓ Audio pipeline slicing and windowing passed." << std::endl;
 }
 
 void test_edge_cases(const std::filesystem::path &dir)
@@ -579,6 +794,8 @@ int main()
   test_rtf_extraction(temp_dir);
   test_office_formats(temp_dir);
   test_subtitles_and_media(temp_dir);
+  test_video_pipeline(temp_dir);
+  test_audio_pipeline(temp_dir);
   test_image_pipeline(temp_dir);
   test_pipeline_architecture();
   test_edge_cases(temp_dir);

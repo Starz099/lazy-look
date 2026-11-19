@@ -161,7 +161,11 @@ void SearchController::executeSearch(const QString &query_text, uint64_t qid)
 
     std::vector<float> query_emb;
     if (model_loaded_ && filter != "exact") {
-      query_emb = embedder_.embed_query(q_str);
+      auto parsed = Database::parse_query_category(q_str);
+      std::string embed_text = parsed.text.empty() ? q_str : parsed.text;
+      if (!embed_text.empty()) {
+        query_emb = embedder_.embed_query(embed_text);
+      }
     }
 
     auto results = db_.search_hybrid(query_emb, q_str, 50);
@@ -235,7 +239,7 @@ void SearchController::openFile(const QString &path, int pageNumber)
     }
   }
 
-  // 3. Video / Audio / Subtitle media -> jump to timestamp (seconds)
+  // 3. Video / Audio / Subtitle media -> jump to timestamp (seconds) if player supports it
   static const QStringList media_exts = {".mp4",
                                          ".mkv",
                                          ".webm",
@@ -260,40 +264,91 @@ void SearchController::openFile(const QString &path, int pageNumber)
     }
   }
 
-  if (pageNumber > 0 && is_media) {
-    QString media_target = path;
-    if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
-      QFileInfo fi(path);
-      QString base = fi.path() + "/" + fi.completeBaseName();
-      for (const auto &vext : {".mp4", ".mkv", ".webm", ".avi", ".mov"}) {
-        if (QFile::exists(base + vext)) {
-          media_target = base + vext;
-          break;
-        }
+  QString target_path = path;
+  if (is_media && (lower.endsWith(".srt") || lower.endsWith(".vtt"))) {
+    QFileInfo fi(path);
+    QString base = fi.path() + "/" + fi.completeBaseName();
+    for (const auto &vext : {".mp4", ".mkv", ".webm", ".avi", ".mov"}) {
+      if (QFile::exists(base + vext)) {
+        target_path = base + vext;
+        break;
       }
     }
+  }
 
-    const QString vlc_bin = QStandardPaths::findExecutable("vlc");
-    if (!vlc_bin.isEmpty() &&
-        QProcess::startDetached(vlc_bin,
-                                {"--start-time", QString::number(pageNumber), media_target})) {
+  if (pageNumber > 0 && is_media) {
+    // 1. Try mpv
+    const QString mpv_bin = QStandardPaths::findExecutable("mpv");
+    if (!mpv_bin.isEmpty() &&
+        QProcess::startDetached(mpv_bin, {"--start=" + QString::number(pageNumber), target_path})) {
       emit fileOpened();
       return;
     }
 
-    const QString mpv_bin = QStandardPaths::findExecutable("mpv");
-    if (!mpv_bin.isEmpty() &&
-        QProcess::startDetached(mpv_bin,
-                                {"--start=" + QString::number(pageNumber), media_target})) {
+    // 2. Try VLC
+    const QString vlc_bin = QStandardPaths::findExecutable("vlc");
+    if (!vlc_bin.isEmpty() &&
+        QProcess::startDetached(vlc_bin,
+                                {"--start-time", QString::number(pageNumber), target_path})) {
+      emit fileOpened();
+      return;
+    }
+
+    // 3. Try Totem (GNOME Videos)
+    const QString totem_bin = QStandardPaths::findExecutable("totem");
+    if (!totem_bin.isEmpty() &&
+        QProcess::startDetached(
+            totem_bin,
+            {"--seek", QString::number(static_cast<qint64>(pageNumber) * 1000), target_path})) {
+      emit fileOpened();
+      return;
+    }
+
+    // 4. Try Celluloid (GNOME MPV frontend)
+    const QString celluloid_bin = QStandardPaths::findExecutable("celluloid");
+    if (!celluloid_bin.isEmpty() &&
+        QProcess::startDetached(celluloid_bin,
+                                {"--start=" + QString::number(pageNumber), target_path})) {
+      emit fileOpened();
+      return;
+    }
+
+    // 5. Try SMPlayer
+    const QString smplayer_bin = QStandardPaths::findExecutable("smplayer");
+    if (!smplayer_bin.isEmpty() &&
+        QProcess::startDetached(smplayer_bin,
+                                {"-start", QString::number(pageNumber), target_path})) {
+      emit fileOpened();
+      return;
+    }
+
+    // 6. Try Haruna (KDE player)
+    const QString haruna_bin = QStandardPaths::findExecutable("haruna");
+    if (!haruna_bin.isEmpty() &&
+        QProcess::startDetached(haruna_bin,
+                                {"--start=" + QString::number(pageNumber), target_path})) {
       emit fileOpened();
       return;
     }
   }
 
-  // Primary / fallback: open via default desktop environment handler
-  bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-  std::cout << "[LazyFinder] QDesktopServices::openUrl: " << (ok ? "success" : "failed")
-            << std::endl;
+  // Universal fallback: open via default desktop environment handler (Showtime, Clapper, Haruna,
+  // etc.)
+  bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(target_path));
+  if (!ok) {
+    const QString gio_bin = QStandardPaths::findExecutable("gio");
+    if (!gio_bin.isEmpty() && QProcess::startDetached(gio_bin, {"open", target_path})) {
+      ok = true;
+    }
+    else {
+      const QString xdg_bin = QStandardPaths::findExecutable("xdg-open");
+      if (!xdg_bin.isEmpty() && QProcess::startDetached(xdg_bin, {target_path})) {
+        ok = true;
+      }
+    }
+  }
+  std::cout << "[LazyFinder] Open file: " << target_path.toStdString() << " ("
+            << (ok ? "success" : "failed") << ")" << std::endl;
   emit fileOpened();
 }
 

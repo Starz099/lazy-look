@@ -107,14 +107,14 @@ bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_
     processed.chunks.push_back(ProcessedChunk{path.filename().string(), 0, {}});
   }
 
-  std::vector<std::string> chunk_texts;
-  chunk_texts.reserve(processed.chunks.size());
+  std::vector<ChunkRecord> chunk_records;
+  chunk_records.reserve(processed.chunks.size());
   for (const auto &chunk : processed.chunks) {
-    chunk_texts.push_back(chunk.text);
+    chunk_records.push_back(ChunkRecord{chunk.text, chunk.page_or_timestamp, chunk.thumbnail_path});
   }
 
   // Stage 1: Insert file record and text chunks immediately for instant lexical (FTS5) search
-  auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunk_texts);
+  auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunk_records);
   if (!chunk_ids.has_value() || chunk_ids->size() != processed.chunks.size()) {
     return false;
   }

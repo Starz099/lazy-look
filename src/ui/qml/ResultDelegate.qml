@@ -15,6 +15,7 @@ Item {
   required property string category
   required property string iconName
   required property int pageNumber
+  required property string thumbnailPath
 
   property bool isSelected: ListView.isCurrentItem
 
@@ -94,7 +95,7 @@ Item {
 
           Row {
             anchors.left: parent.left
-            anchors.right: scorePill.left
+            anchors.right: (thumbPreview.visible ? thumbPreview.left : scorePill.left)
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
@@ -116,6 +117,26 @@ Item {
               color: "#9a9996"
               elide: Text.ElideMiddle
               maximumLineCount: 1
+            }
+          }
+
+          Rectangle {
+            id: thumbPreview
+            visible: root.thumbnailPath !== undefined && root.thumbnailPath.length > 0
+            anchors.right: scorePill.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 32
+            height: 18
+            radius: 3
+            clip: true
+            color: "#000000"
+
+            Image {
+              anchors.fill: parent
+              source: (root.thumbnailPath !== undefined && root.thumbnailPath.length > 0) ? ("file://" + root.thumbnailPath) : ""
+              fillMode: Image.PreserveAspectCrop
+              asynchronous: true
             }
           }
 

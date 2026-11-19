@@ -286,6 +286,150 @@ void test_utf8_snippet_cleanliness()
   std::cout << "  ✓ UTF-8 snippet cleanliness and mojibake prevention passed." << std::endl;
 }
 
+void test_video_chunks_and_thumbnails()
+{
+  std::cout << "[Test] Video chunks, timecodes, and thumbnail metadata..." << std::endl;
+
+  const auto db_path = temp_db_path();
+  lazyfinder::Database db;
+  TEST_ASSERT(db.open(db_path.string()), "Database open");
+
+  const std::string video_path = "/videos/screencast_demo.mp4";
+  const std::vector<lazyfinder::ChunkRecord> chunks = {
+      {"screencast_demo.mp4\n[00:15] Introduction to Vulkan compute pipelines",
+       15,
+       "/thumbs/video_15.jpg"},
+      {"screencast_demo.mp4\n[02:45] Benchmarks and memory allocation performance",
+       165,
+       "/thumbs/video_165.jpg"},
+      {"screencast_demo.mp4\n[05:10] Conclusion and next milestones",
+       310,
+       "/thumbs/video_310.jpg"}};
+
+  auto chunk_ids = db.insert_file_chunks(video_path, 2048, 1700000000, chunks);
+  TEST_ASSERT(chunk_ids.has_value() && chunk_ids->size() == 3,
+              "Inserted 3 video chunks with metadata");
+
+  // Search for "benchmarks"
+  auto res = db.search_hybrid({}, "benchmarks", 5);
+  TEST_ASSERT(!res.empty(), "Found video result for 'benchmarks'");
+  TEST_ASSERT(res[0].path == video_path, "Matches correct video path");
+  TEST_ASSERT(res[0].page_number == 165, "Timecode retrieved as 165 seconds (02:45)");
+  TEST_ASSERT(res[0].thumbnail_path == "/thumbs/video_165.jpg", "Thumbnail path preserved");
+  TEST_ASSERT(res[0].snippet.find("02:45 • ") != std::string::npos,
+              "Formatted timecode badge in snippet");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ Video chunks, timecodes, and thumbnail persistence passed." << std::endl;
+}
+
+void test_query_category_prefixes()
+{
+  std::cout << "[Test] Query Category Prefixes and Category Filtering..." << std::endl;
+
+  // 1. Prefix parsing verification
+  auto q1 = lazyfinder::Database::parse_query_category("code: calculate_hash");
+  TEST_ASSERT(q1.category == lazyfinder::QueryCategory::Code, "Parsed 'code:' as Code");
+  TEST_ASSERT(q1.text == "calculate_hash", "Extracted clean text 'calculate_hash'");
+
+  auto q2 = lazyfinder::Database::parse_query_category("type:code fn main");
+  TEST_ASSERT(q2.category == lazyfinder::QueryCategory::Code, "Parsed 'type:code' as Code");
+  TEST_ASSERT(q2.text == "fn main", "Extracted clean text 'fn main'");
+
+  auto q3 = lazyfinder::Database::parse_query_category("doc: annual report");
+  TEST_ASSERT(q3.category == lazyfinder::QueryCategory::Document, "Parsed 'doc:' as Document");
+  TEST_ASSERT(q3.text == "annual report", "Extracted clean text 'annual report'");
+
+  auto q4 = lazyfinder::Database::parse_query_category("pdf: quarterly results");
+  TEST_ASSERT(q4.category == lazyfinder::QueryCategory::Document, "Parsed 'pdf:' as Document");
+  TEST_ASSERT(q4.text == "quarterly results", "Extracted clean text 'quarterly results'");
+
+  auto q5 = lazyfinder::Database::parse_query_category("image: screenshot");
+  TEST_ASSERT(q5.category == lazyfinder::QueryCategory::Image, "Parsed 'image:' as Image");
+  TEST_ASSERT(q5.text == "screenshot", "Extracted clean text 'screenshot'");
+
+  auto q6 = lazyfinder::Database::parse_query_category("video: conference");
+  TEST_ASSERT(q6.category == lazyfinder::QueryCategory::Video, "Parsed 'video:' as Video");
+  TEST_ASSERT(q6.text == "conference", "Extracted clean text 'conference'");
+
+  auto q7 = lazyfinder::Database::parse_query_category("audio: podcast");
+  TEST_ASSERT(q7.category == lazyfinder::QueryCategory::Audio, "Parsed 'audio:' as Audio");
+  TEST_ASSERT(q7.text == "podcast", "Extracted clean text 'podcast'");
+
+  auto q8 = lazyfinder::Database::parse_query_category("regular search text");
+  TEST_ASSERT(q8.category == lazyfinder::QueryCategory::All, "Regular text parsed as All");
+  TEST_ASSERT(q8.text == "regular search text", "Clean text preserved");
+
+  // 2. Path matching verification
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("main.rs", lazyfinder::QueryCategory::Code),
+      "main.rs is Code");
+  TEST_ASSERT(
+      !lazyfinder::Database::path_matches_category("main.rs", lazyfinder::QueryCategory::Image),
+      "main.rs is NOT Image");
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("doc.pdf", lazyfinder::QueryCategory::Document),
+      "doc.pdf is Document");
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("pic.png", lazyfinder::QueryCategory::Image),
+      "pic.png is Image");
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("vid.mp4", lazyfinder::QueryCategory::Video),
+      "vid.mp4 is Video");
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("song.mp3", lazyfinder::QueryCategory::Audio),
+      "song.mp3 is Audio");
+  TEST_ASSERT(
+      lazyfinder::Database::path_matches_category("song.mp3", lazyfinder::QueryCategory::Media),
+      "song.mp3 is Media");
+
+  // 3. Category filtered hybrid search verification
+  const std::string db_path = "/tmp/test_cat_prefix_" + std::to_string(std::rand()) + ".db";
+  lazyfinder::Database db;
+  TEST_ASSERT(db.open(db_path), "Database opened");
+
+  db.insert_file_chunks("src/math.cpp", 100, 1000, {"int compute_value() { return 42; }"});
+  db.insert_file_chunks("docs/report.pdf", 200, 1000, {"Annual compute_value financial summary"});
+  db.insert_file_chunks("images/diagram.png", 300, 1000, {"Architecture diagram compute_value"});
+  db.insert_file_chunks("videos/demo.mp4", 400, 1000, {"Demo clip compute_value presentation"});
+  db.insert_file_chunks(
+      "podcasts/show.mp3", 500, 1000, {"Podcast episode compute_value discussion"});
+
+  // Query "code: compute_value" -> should return ONLY src/math.cpp
+  auto code_res = db.search_hybrid({}, "code: compute_value", 10);
+  TEST_ASSERT(code_res.size() == 1, "Only 1 result for 'code: compute_value'");
+  TEST_ASSERT(code_res[0].path == "src/math.cpp", "Result is math.cpp");
+
+  // Query "doc: compute_value" -> should return ONLY docs/report.pdf
+  auto doc_res = db.search_hybrid({}, "doc: compute_value", 10);
+  TEST_ASSERT(doc_res.size() == 1, "Only 1 result for 'doc: compute_value'");
+  TEST_ASSERT(doc_res[0].path == "docs/report.pdf", "Result is report.pdf");
+
+  // Query "image: compute_value" -> should return ONLY images/diagram.png
+  auto img_res = db.search_hybrid({}, "image: compute_value", 10);
+  TEST_ASSERT(img_res.size() == 1, "Only 1 result for 'image: compute_value'");
+  TEST_ASSERT(img_res[0].path == "images/diagram.png", "Result is diagram.png");
+
+  // Query "video: compute_value" -> should return ONLY videos/demo.mp4
+  auto vid_res = db.search_hybrid({}, "video: compute_value", 10);
+  TEST_ASSERT(vid_res.size() == 1, "Only 1 result for 'video: compute_value'");
+  TEST_ASSERT(vid_res[0].path == "videos/demo.mp4", "Result is demo.mp4");
+
+  // Query "audio: compute_value" -> should return ONLY podcasts/show.mp3
+  auto aud_res = db.search_hybrid({}, "audio: compute_value", 10);
+  TEST_ASSERT(aud_res.size() == 1, "Only 1 result for 'audio: compute_value'");
+  TEST_ASSERT(aud_res[0].path == "podcasts/show.mp3", "Result is show.mp3");
+
+  // Query without prefix -> returns all matching files
+  auto all_res = db.search_hybrid({}, "compute_value", 10);
+  TEST_ASSERT(all_res.size() == 5, "Unfiltered query returns all 5 matching files");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ Query category prefixes and filtering passed." << std::endl;
+}
+
 int main()
 {
   std::cout << "========================================" << std::endl;
@@ -297,6 +441,8 @@ int main()
   test_query_intelligence_and_prefix();
   test_contextual_snippets_and_pages();
   test_utf8_snippet_cleanliness();
+  test_video_chunks_and_thumbnails();
+  test_query_category_prefixes();
 
   std::cout << "========================================" << std::endl;
   std::cout << "ALL DATABASE TESTS PASSED SUCCESSFULLY! " << std::endl;

@@ -26,7 +26,32 @@ struct SearchResult
   float score = 0.0f;
   int64_t file_id = 0;
   int chunk_index = 0;
-  int page_number = 0; // 1-based page / slide index (0 if not applicable)
+  int page_number = 0;        // 1-based page / slide index, or seconds for media
+  std::string thumbnail_path; // Keyframe preview thumbnail path (optional)
+};
+
+struct ChunkRecord
+{
+  std::string text;
+  int page_number = 0;
+  std::string thumbnail_path;
+};
+
+enum class QueryCategory
+{
+  All = 0,
+  Code,
+  Document,
+  Image,
+  Video,
+  Audio,
+  Media
+};
+
+struct ParsedQuery
+{
+  QueryCategory category = QueryCategory::All;
+  std::string text;
 };
 
 class Database
@@ -40,6 +65,9 @@ public:
   Database(Database &&) noexcept;
   Database &operator=(Database &&) noexcept;
 
+  static ParsedQuery parse_query_category(std::string_view query);
+  static bool path_matches_category(std::string_view path, QueryCategory category);
+
   bool open(std::string_view db_path = "");
   void close();
   [[nodiscard]] bool is_open() const;
@@ -52,6 +80,11 @@ public:
                   int64_t mtime,
                   const std::vector<std::string> &chunks,
                   const std::vector<std::vector<float>> &embeddings);
+
+  std::optional<std::vector<int64_t>> insert_file_chunks(std::string_view path,
+                                                         int64_t size,
+                                                         int64_t mtime,
+                                                         const std::vector<ChunkRecord> &chunks);
 
   std::optional<std::vector<int64_t>> insert_file_chunks(std::string_view path,
                                                          int64_t size,

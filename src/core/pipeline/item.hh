@@ -18,7 +18,8 @@ enum class FileCategory
 struct ProcessedChunk
 {
   std::string text;
-  int page_or_timestamp = 0; // 1-based page number (doc) or seconds (media)
+  int page_or_timestamp = 0;  // 1-based page number (doc) or seconds (media)
+  std::string thumbnail_path; // Keyframe thumbnail path (optional)
   std::vector<float> custom_embedding;
 };
 

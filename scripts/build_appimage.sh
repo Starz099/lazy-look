@@ -26,12 +26,15 @@ cp "${ROOT_DIR}/resources/icons/lazyfinder.svg" "${APPDIR}/usr/share/icons/hicol
 # Top-level AppImage requirements
 cp "${ROOT_DIR}/resources/lazyfinder.desktop" "${APPDIR}/"
 cp "${ROOT_DIR}/resources/icons/lazyfinder.svg" "${APPDIR}/"
-if command -v magick >/dev/null 2>&1; then
-    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/.DirIcon"
-    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/lazyfinder.png"
+if [[ -f "${ROOT_DIR}/resources/icons/lazyfinder.png" ]]; then
+    cp "${ROOT_DIR}/resources/icons/lazyfinder.png" "${APPDIR}/lazyfinder.png"
+    cp "${ROOT_DIR}/resources/icons/lazyfinder.png" "${APPDIR}/.DirIcon"
+elif command -v magick >/dev/null 2>&1; then
+    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
+    magick "${ROOT_DIR}/resources/icons/lazyfinder.svg" -background transparent -resize 256x256 "${APPDIR}/lazyfinder.png" 2>/dev/null || true
 elif command -v convert >/dev/null 2>&1; then
-    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/.DirIcon"
-    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/lazyfinder.png"
+    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/.DirIcon" 2>/dev/null || true
+    convert -background transparent "${ROOT_DIR}/resources/icons/lazyfinder.svg" -resize 256x256 "${APPDIR}/lazyfinder.png" 2>/dev/null || true
 fi
 
 # Create AppRun entrypoint
