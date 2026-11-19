@@ -349,6 +349,55 @@ ImageMetadata ImageHandler::extract_metadata(const std::filesystem::path &path)
                    [](unsigned char c) { return std::toupper(c); });
   }
 
+  // If text is not present, attempt OCR on image via Tesseract if available
+  if (meta.text_content.empty() && ext != ".svg") {
+    static const bool has_tesseract = (std::system("which tesseract >/dev/null 2>&1") == 0);
+    if (has_tesseract) {
+      std::string escaped = "'";
+      for (const char c : path.string()) {
+        if (c == '\'') {
+          escaped += "'\\''";
+        }
+        else {
+          escaped += c;
+        }
+      }
+      escaped += "'";
+
+      const std::string ocr_cmd = "tesseract " + escaped + " stdout 2>/dev/null";
+      FILE *pipe = popen(ocr_cmd.c_str(), "r");
+      if (pipe) {
+        std::string ocr_res;
+        char buf[1024];
+        while (fgets(buf, sizeof(buf), pipe) != nullptr) {
+          ocr_res += buf;
+          if (ocr_res.size() > 2000) {
+            break;
+          }
+        }
+        pclose(pipe);
+
+        std::string cleaned;
+        for (char c : ocr_res) {
+          if (c == '\r' || c == '\n') {
+            if (!cleaned.empty() && cleaned.back() != ' ') {
+              cleaned += ' ';
+            }
+          }
+          else if (static_cast<unsigned char>(c) >= 32) {
+            cleaned += c;
+          }
+        }
+        while (!cleaned.empty() && cleaned.back() == ' ') {
+          cleaned.pop_back();
+        }
+        if (cleaned.size() >= 5) {
+          meta.text_content = std::move(cleaned);
+        }
+      }
+    }
+  }
+
   return meta;
 }
 

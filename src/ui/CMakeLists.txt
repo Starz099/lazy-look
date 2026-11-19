@@ -1,7 +1,7 @@
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 Widgets DBus Network REQUIRED)
 
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
@@ -37,4 +37,6 @@ target_link_libraries(lazyfinder
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets
+    Qt6::DBus
+    Qt6::Network
 )

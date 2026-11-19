@@ -372,29 +372,112 @@ Rectangle {
             }
           }
 
-          Rectangle {
+          Row {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            height: 26
-            width: modelDirBtnText.implicitWidth + 18
-            radius: 5
-            color: modelDirMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.1)
+            spacing: 6
 
-            Text {
-              id: modelDirBtnText
-              anchors.centerIn: parent
-              text: "Models Folder"
-              font.pixelSize: 11
-              color: "#ffffff"
+            Rectangle {
+              height: 26
+              width: dlModelBtnText.implicitWidth + 18
+              radius: 5
+              visible: !searchController.isModelInstalled && !searchController.isDownloadingModel
+              color: dlModelMouse.containsMouse ? "#4793f0" : "#3584e4"
+
+              Text {
+                id: dlModelBtnText
+                anchors.centerIn: parent
+                text: "⬇ Download Model"
+                font.pixelSize: 11
+                font.bold: true
+                color: "#ffffff"
+              }
+
+              MouseArea {
+                id: dlModelMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  searchController.startModelDownload();
+                }
+              }
             }
 
-            MouseArea {
-              id: modelDirMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: {
-                searchController.openModelDirectory();
+            Rectangle {
+              height: 26
+              width: modelDirBtnText.implicitWidth + 18
+              radius: 5
+              color: modelDirMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.1)
+
+              Text {
+                id: modelDirBtnText
+                anchors.centerIn: parent
+                text: "Models Folder"
+                font.pixelSize: 11
+                color: "#ffffff"
+              }
+
+              MouseArea {
+                id: modelDirMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  searchController.openModelDirectory();
+                }
+              }
+            }
+          }
+        }
+
+        // Live Download Progress (Visible during download)
+        Column {
+          width: parent.width
+          spacing: 4
+          visible: searchController.isDownloadingModel
+
+          Rectangle {
+            width: parent.width
+            height: 6
+            radius: 3
+            color: Qt.rgba(1, 1, 1, 0.1)
+
+            Rectangle {
+              height: parent.height
+              radius: 3
+              width: parent.width * (Math.max(0, Math.min(100, searchController.modelDownloadProgress)) / 100.0)
+              color: "#3584e4"
+            }
+          }
+
+          Item {
+            width: parent.width
+            height: 16
+
+            Text {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              text: searchController.modelDownloadStatus
+              font.pixelSize: 10
+              color: "#deddda"
+            }
+
+            Text {
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Cancel"
+              font.pixelSize: 10
+              color: cancelDlSettingsMouse.containsMouse ? "#f66151" : "#9a9996"
+
+              MouseArea {
+                id: cancelDlSettingsMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  searchController.cancelModelDownload();
+                }
               }
             }
           }

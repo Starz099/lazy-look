@@ -38,16 +38,106 @@ Item {
       height: 24
       width: modelBadgeText.implicitWidth + 16
       radius: 12
-      color: searchController.isModelInstalled ? Qt.rgba(0.18, 0.76, 0.49, 0.15) : Qt.rgba(0.96, 0.38, 0.32, 0.15)
-      border.color: searchController.isModelInstalled ? "#2ec27e" : "#f66151"
+      visible: searchController.isModelInstalled
+      color: Qt.rgba(0.18, 0.76, 0.49, 0.15)
+      border.color: "#2ec27e"
       border.width: 1
 
       Text {
         id: modelBadgeText
         anchors.centerIn: parent
-        text: searchController.isModelInstalled ? "AI Semantic Search Ready" : "Keyword Search Ready (Model Not Found)"
+        text: "AI Semantic Search Ready"
         font.pixelSize: 11
-        color: searchController.isModelInstalled ? "#2ec27e" : "#f66151"
+        color: "#2ec27e"
+      }
+    }
+
+    // Interactive Download Card when model is not installed
+    Column {
+      anchors.horizontalCenter: parent.horizontalCenter
+      spacing: 8
+      visible: !searchController.isModelInstalled
+      width: Math.min(360, parent.width)
+
+      Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        height: 32
+        width: dlBtnText.implicitWidth + 24
+        radius: 16
+        color: dlMouse.containsMouse ? "#3584e4" : Qt.rgba(0.21, 0.52, 0.89, 0.2)
+        border.color: "#3584e4"
+        border.width: 1
+        visible: !searchController.isDownloadingModel
+
+        Text {
+          id: dlBtnText
+          anchors.centerIn: parent
+          text: "⬇ Download AI Model (310 MB)"
+          font.pixelSize: 12
+          font.bold: true
+          color: "#ffffff"
+        }
+
+        MouseArea {
+          id: dlMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            searchController.startModelDownload();
+          }
+        }
+      }
+
+      Column {
+        width: parent.width
+        spacing: 6
+        visible: searchController.isDownloadingModel
+
+        Rectangle {
+          width: parent.width
+          height: 6
+          radius: 3
+          color: Qt.rgba(1, 1, 1, 0.1)
+
+          Rectangle {
+            height: parent.height
+            radius: 3
+            width: parent.width * (Math.max(0, Math.min(100, searchController.modelDownloadProgress)) / 100.0)
+            color: "#3584e4"
+          }
+        }
+
+        Item {
+          width: parent.width
+          height: 16
+
+          Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: searchController.modelDownloadStatus
+            font.pixelSize: 10
+            color: "#deddda"
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Cancel"
+            font.pixelSize: 10
+            color: cancelDlMouse.containsMouse ? "#f66151" : "#9a9996"
+
+            MouseArea {
+              id: cancelDlMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                searchController.cancelModelDownload();
+              }
+            }
+          }
+        }
       }
     }
 

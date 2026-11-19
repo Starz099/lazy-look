@@ -1,12 +1,15 @@
 #include "search_controller.hh"
 
 #include <QClipboard>
+#include <QDBusConnection>
+#include <QDBusMessage>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMetaObject>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
@@ -324,6 +327,24 @@ void SearchController::revealInFolder(const QString &path)
     return;
   }
   QFileInfo fi(path);
+  if (!fi.exists()) {
+    return;
+  }
+
+  // Try FreeDesktop FileManager1 D-Bus interface to select and highlight the exact file
+  const QString fileUrl = QUrl::fromLocalFile(fi.absoluteFilePath()).toString();
+  QDBusMessage msg = QDBusMessage::createMethodCall("org.freedesktop.FileManager1",
+                                                    "/org/freedesktop/FileManager1",
+                                                    "org.freedesktop.FileManager1",
+                                                    "ShowItems");
+  msg << QStringList{fileUrl} << QString("");
+
+  const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::BlockWithGui, 800);
+  if (reply.type() == QDBusMessage::ReplyMessage) {
+    return;
+  }
+
+  // Fallback to opening parent directory
   QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absolutePath()));
 }
 
@@ -359,6 +380,9 @@ void SearchController::addWatchedDirectory(const QString &dir)
               << Config::instance().watched_directories().size() << std::endl;
     watcher_.update_directories(Config::instance().watched_directories());
     emit watchedDirectoriesChanged();
+
+    // Automatically trigger initial indexing of the newly added folder
+    startSync();
   }
   else {
     std::cout << "[Folder] Directory already in watched list: " << dir_str << std::endl;
@@ -753,6 +777,150 @@ void SearchController::setMemorySaver(bool enabled)
     model_sleep_timer_.stop();
   }
   emit memorySaverChanged();
+}
+
+void SearchController::startModelDownload()
+{
+  if (is_downloading_model_) {
+    return;
+  }
+
+  const std::string dest_path = Config::default_user_model_path();
+  const std::filesystem::path dest_dir = std::filesystem::path(dest_path).parent_path();
+  std::error_code ec;
+  std::filesystem::create_directories(dest_dir, ec);
+
+  const QString tmp_path = QString::fromStdString(dest_path + ".tmp");
+  download_file_ = std::make_unique<QFile>(tmp_path);
+  if (!download_file_->open(QIODevice::WriteOnly)) {
+    model_download_status_ = "Error: Cannot write to " + tmp_path;
+    emit modelDownloadStatusChanged();
+    return;
+  }
+
+  if (!net_manager_) {
+    net_manager_ = std::make_unique<QNetworkAccessManager>(this);
+  }
+
+  const QUrl url("https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/main/"
+                 "embeddinggemma-2-Q8_0.gguf");
+  QNetworkRequest request(url);
+  request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                       QNetworkRequest::NoLessSafeRedirectPolicy);
+
+  download_reply_ = net_manager_->get(request);
+  is_downloading_model_ = true;
+  model_download_progress_ = 0;
+  model_download_status_ = "Connecting to Hugging Face...";
+  emit isDownloadingModelChanged();
+  emit modelDownloadProgressChanged();
+  emit modelDownloadStatusChanged();
+
+  connect(download_reply_, &QNetworkReply::readyRead, this, [this]() {
+    if (download_file_ && download_reply_) {
+      download_file_->write(download_reply_->readAll());
+    }
+  });
+
+  connect(download_reply_,
+          &QNetworkReply::downloadProgress,
+          this,
+          [this](qint64 bytesReceived, qint64 bytesTotal) {
+            if (bytesTotal > 0) {
+              const int pct = static_cast<int>((bytesReceived * 100) / bytesTotal);
+              if (pct != model_download_progress_) {
+                model_download_progress_ = pct;
+                emit modelDownloadProgressChanged();
+              }
+              const double mbReceived = static_cast<double>(bytesReceived) / (1024.0 * 1024.0);
+              const double mbTotal = static_cast<double>(bytesTotal) / (1024.0 * 1024.0);
+              model_download_status_ = QString("Downloading EmbeddingGemma-2: %1% (%2 MB / %3 MB)")
+                                           .arg(pct)
+                                           .arg(QString::number(mbReceived, 'f', 1))
+                                           .arg(QString::number(mbTotal, 'f', 1));
+              emit modelDownloadStatusChanged();
+            }
+          });
+
+  connect(download_reply_, &QNetworkReply::finished, this, [this, dest_path, tmp_path]() {
+    is_downloading_model_ = false;
+    emit isDownloadingModelChanged();
+
+    if (!download_reply_) {
+      return;
+    }
+
+    if (download_reply_->error() != QNetworkReply::NoError) {
+      model_download_status_ = "Download failed: " + download_reply_->errorString();
+      emit modelDownloadStatusChanged();
+      if (download_file_) {
+        download_file_->close();
+        download_file_->remove();
+        download_file_.reset();
+      }
+      download_reply_->deleteLater();
+      return;
+    }
+
+    if (download_file_) {
+      download_file_->flush();
+      download_file_->close();
+      download_file_.reset();
+    }
+
+    std::error_code rename_ec;
+    std::filesystem::rename(tmp_path.toStdString(), dest_path, rename_ec);
+    if (rename_ec) {
+      model_download_status_ = "Failed to finalize model file.";
+      emit modelDownloadStatusChanged();
+      download_reply_->deleteLater();
+      return;
+    }
+
+    model_download_progress_ = 100;
+    model_download_status_ = "Model installed. Initializing neural engine...";
+    emit modelDownloadProgressChanged();
+    emit modelDownloadStatusChanged();
+    emit modelInstalledChanged();
+    emit modelPathChanged();
+
+    download_reply_->deleteLater();
+
+    // Asynchronously load the newly downloaded model
+    std::thread([this, dest_path]() {
+      if (embedder_.load_model(dest_path)) {
+        QMetaObject::invokeMethod(
+            this,
+            [this]() {
+              model_loaded_ = true;
+              model_download_status_ = "AI engine active.";
+              emit modelLoadedChanged();
+              emit modelDownloadStatusChanged();
+              resetModelSleepTimer();
+            },
+            Qt::QueuedConnection);
+      }
+    }).detach();
+  });
+}
+
+void SearchController::cancelModelDownload()
+{
+  if (download_reply_) {
+    download_reply_->abort();
+    download_reply_->deleteLater();
+  }
+  if (download_file_) {
+    download_file_->close();
+    download_file_->remove();
+    download_file_.reset();
+  }
+  is_downloading_model_ = false;
+  model_download_progress_ = 0;
+  model_download_status_ = "Download cancelled.";
+  emit isDownloadingModelChanged();
+  emit modelDownloadProgressChanged();
+  emit modelDownloadStatusChanged();
 }
 
 } // namespace lazyfinder

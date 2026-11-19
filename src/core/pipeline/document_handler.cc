@@ -653,6 +653,53 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
     }
   }
 
+  // If no embedded text was found, document is a scanned PDF: try Tesseract OCR fallback
+  if (chunks.empty()) {
+    static const bool has_tesseract = (std::system("which tesseract >/dev/null 2>&1") == 0);
+    if (has_tesseract) {
+      const std::string ocr_cmd =
+          "tesseract " + escape_shell_arg(path.string()) + " stdout 2>/dev/null";
+      FILE *ocr_pipe = popen(ocr_cmd.c_str(), "r");
+      if (ocr_pipe) {
+        current_page.clear();
+        page_num = 1;
+        while (fgets(buffer, sizeof(buffer), ocr_pipe) != nullptr) {
+          for (char *p = buffer; *p != '\0'; ++p) {
+            if (*p == '\x0c') {
+              std::string cleaned = clean_text(current_page);
+              if (cleaned.size() >= 15) {
+                if (cleaned.size() > max_chunk_chars) {
+                  cleaned.resize(max_chunk_chars);
+                }
+                chunks.push_back(ProcessedChunk{std::move(cleaned), page_num, {}});
+                if (chunks.size() >= max_chunks_per_file) {
+                  pclose(ocr_pipe);
+                  return chunks;
+                }
+              }
+              current_page.clear();
+              page_num++;
+            }
+            else {
+              current_page.push_back(*p);
+            }
+          }
+        }
+        pclose(ocr_pipe);
+
+        if (!current_page.empty()) {
+          std::string cleaned = clean_text(current_page);
+          if (cleaned.size() >= 15 && chunks.size() < max_chunks_per_file) {
+            if (cleaned.size() > max_chunk_chars) {
+              cleaned.resize(max_chunk_chars);
+            }
+            chunks.push_back(ProcessedChunk{std::move(cleaned), page_num, {}});
+          }
+        }
+      }
+    }
+  }
+
   return chunks;
 }
 

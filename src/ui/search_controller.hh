@@ -7,7 +7,11 @@
 #include "results_model.hh"
 #include "watcher.hh"
 
+#include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -35,6 +39,10 @@ class SearchController : public QObject
   Q_PROPERTY(bool modelLoaded READ modelLoaded NOTIFY modelLoadedChanged)
   Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelInstalledChanged)
   Q_PROPERTY(QString modelPath READ modelPath NOTIFY modelPathChanged)
+  Q_PROPERTY(bool isDownloadingModel READ isDownloadingModel NOTIFY isDownloadingModelChanged)
+  Q_PROPERTY(
+      int modelDownloadProgress READ modelDownloadProgress NOTIFY modelDownloadProgressChanged)
+  Q_PROPERTY(QString modelDownloadStatus READ modelDownloadStatus NOTIFY modelDownloadStatusChanged)
   Q_PROPERTY(QString globalShortcut READ globalShortcut WRITE setGlobalShortcut NOTIFY
                  globalShortcutChanged)
   Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
@@ -57,6 +65,11 @@ public:
   [[nodiscard]] bool modelLoaded() const { return model_loaded_; }
   [[nodiscard]] bool isModelInstalled() const;
   [[nodiscard]] QString modelPath() const;
+  [[nodiscard]] bool isDownloadingModel() const { return is_downloading_model_; }
+  [[nodiscard]] int modelDownloadProgress() const { return model_download_progress_; }
+  [[nodiscard]] QString modelDownloadStatus() const { return model_download_status_; }
+  Q_INVOKABLE void startModelDownload();
+  Q_INVOKABLE void cancelModelDownload();
 
   [[nodiscard]] QString globalShortcut() const;
   Q_INVOKABLE void setGlobalShortcut(const QString &shortcut);
@@ -98,6 +111,9 @@ signals:
   void modelLoadedChanged();
   void modelInstalledChanged();
   void modelPathChanged();
+  void isDownloadingModelChanged();
+  void modelDownloadProgressChanged();
+  void modelDownloadStatusChanged();
   void searchCompleted();
   void fileOpened();
   void globalShortcutChanged();
@@ -131,6 +147,13 @@ private:
 
   std::thread indexing_thread_;
   std::atomic<bool> cancel_indexing_{false};
+
+  bool is_downloading_model_ = false;
+  int model_download_progress_ = 0;
+  QString model_download_status_;
+  std::unique_ptr<QNetworkAccessManager> net_manager_;
+  QPointer<QNetworkReply> download_reply_;
+  std::unique_ptr<QFile> download_file_;
 };
 
 } // namespace lazyfinder
