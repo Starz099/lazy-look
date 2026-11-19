@@ -18,3 +18,6 @@ add_custom_target(link_compile_commands ALL
 )
 
 add_subdirectory(src)
+
+enable_testing()
+add_subdirectory(tests)

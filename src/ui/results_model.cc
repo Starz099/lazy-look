@@ -49,8 +49,25 @@ QString determine_category(const QString &ext)
       "rs",  "go",   "java", "sh",  "bash", "json", "toml",  "yaml", "yml",
       "xml", "html", "css",  "sql", "lua",  "zig",  "cmake", "make", "dockerfile"};
 
-  static const QStringList doc_exts = {
-      "txt", "md", "markdown", "pdf", "doc", "docx", "odt", "rtf", "csv", "tsv", "org", "rst"};
+  static const QStringList doc_exts = {"txt",
+                                       "md",
+                                       "markdown",
+                                       "pdf",
+                                       "doc",
+                                       "docx",
+                                       "odt",
+                                       "rtf",
+                                       "csv",
+                                       "tsv",
+                                       "org",
+                                       "rst",
+                                       "xlsx",
+                                       "xls",
+                                       "pptx",
+                                       "ppt",
+                                       "ods",
+                                       "odp",
+                                       "epub"};
 
   static const QStringList media_exts = {"png",
                                          "jpg",

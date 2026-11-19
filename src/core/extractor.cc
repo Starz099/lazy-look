@@ -1,6 +1,7 @@
 #include "extractor.hh"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <fstream>
 #include <memory>
@@ -33,11 +34,56 @@ const std::unordered_set<std::string> &code_extensions()
 
 const std::unordered_set<std::string> &supported_extensions()
 {
-  static const std::unordered_set<std::string> exts = {
-      ".txt",  ".md",   ".markdown", ".rst",  ".org", ".csv",   ".log",  ".c",   ".h",    ".cc",
-      ".cpp",  ".cxx",  ".hh",       ".hpp",  ".rs",  ".py",    ".js",   ".ts",  ".jsx",  ".tsx",
-      ".go",   ".java", ".sh",       ".bash", ".zsh", ".json",  ".yaml", ".yml", ".toml", ".xml",
-      ".html", ".css",  ".sql",      ".lua",  ".zig", ".cmake", ".pdf",  ".docx"};
+  static const std::unordered_set<std::string> exts = {// Plain text, markdown, documentation
+                                                       ".txt",
+                                                       ".md",
+                                                       ".markdown",
+                                                       ".rst",
+                                                       ".org",
+                                                       ".csv",
+                                                       ".tsv",
+                                                       ".log",
+                                                       // Code files
+                                                       ".c",
+                                                       ".h",
+                                                       ".cc",
+                                                       ".cpp",
+                                                       ".cxx",
+                                                       ".hh",
+                                                       ".hpp",
+                                                       ".rs",
+                                                       ".py",
+                                                       ".js",
+                                                       ".ts",
+                                                       ".jsx",
+                                                       ".tsx",
+                                                       ".go",
+                                                       ".java",
+                                                       ".sh",
+                                                       ".bash",
+                                                       ".zsh",
+                                                       ".json",
+                                                       ".yaml",
+                                                       ".yml",
+                                                       ".toml",
+                                                       ".xml",
+                                                       ".html",
+                                                       ".htm",
+                                                       ".css",
+                                                       ".sql",
+                                                       ".lua",
+                                                       ".zig",
+                                                       ".cmake",
+                                                       // Document and Office formats
+                                                       ".pdf",
+                                                       ".docx",
+                                                       ".xlsx",
+                                                       ".pptx",
+                                                       ".odt",
+                                                       ".ods",
+                                                       ".odp",
+                                                       ".epub",
+                                                       ".rtf"};
   return exts;
 }
 
@@ -84,13 +130,13 @@ std::string clean_xml_text(std::string_view xml)
   std::string result;
   result.reserve(xml.size());
   bool inside_tag = false;
-  bool last_space = false;
+  bool last_space = true;
 
   for (size_t i = 0; i < xml.size(); ++i) {
     const char c = xml[i];
     if (c == '<') {
       inside_tag = true;
-      if (!last_space) {
+      if (!last_space && !result.empty()) {
         result.push_back(' ');
         last_space = true;
       }
@@ -120,24 +166,246 @@ std::string clean_xml_text(std::string_view xml)
           result.push_back('\'');
           i += 5;
         }
+        else if (xml.substr(i, 6) == "&nbsp;") {
+          if (!last_space && !result.empty()) {
+            result.push_back(' ');
+            last_space = true;
+          }
+          i += 5;
+          continue;
+        }
         else {
           result.push_back(c);
         }
         last_space = false;
       }
-      else if (c == '\r' || c == '\n' || c == '\t') {
-        if (!last_space) {
+      else if (c == '\r' || c == '\n' || c == '\t' || c == ' ') {
+        if (!last_space && !result.empty()) {
           result.push_back(' ');
           last_space = true;
         }
       }
-      else if (static_cast<unsigned char>(c) >= 32) {
+      else if (static_cast<unsigned char>(c) > 32) {
         result.push_back(c);
-        last_space = (c == ' ');
+        last_space = false;
       }
     }
   }
+  while (!result.empty() && result.back() == ' ') {
+    result.pop_back();
+  }
   return result;
+}
+
+std::string clean_html_text(std::string_view html)
+{
+  std::string result;
+  result.reserve(html.size());
+  bool in_tag = false;
+  bool in_script = false;
+  bool in_style = false;
+  bool last_space = true;
+
+  for (size_t i = 0; i < html.size(); ++i) {
+    const char c = html[i];
+    if (c == '<') {
+      in_tag = true;
+      if (i + 7 < html.size() &&
+          (html.substr(i + 1, 6) == "script" || html.substr(i + 1, 6) == "SCRIPT")) {
+        in_script = true;
+      }
+      else if (i + 8 < html.size() &&
+               (html.substr(i + 1, 7) == "/script" || html.substr(i + 1, 7) == "/SCRIPT")) {
+        in_script = false;
+      }
+      else if (i + 6 < html.size() &&
+               (html.substr(i + 1, 5) == "style" || html.substr(i + 1, 5) == "STYLE")) {
+        in_style = true;
+      }
+      else if (i + 7 < html.size() &&
+               (html.substr(i + 1, 6) == "/style" || html.substr(i + 1, 6) == "/STYLE")) {
+        in_style = false;
+      }
+      if (!last_space && !result.empty()) {
+        result.push_back(' ');
+        last_space = true;
+      }
+    }
+    else if (c == '>') {
+      in_tag = false;
+    }
+    else if (!in_tag && !in_script && !in_style) {
+      if (c == '&') {
+        if (html.substr(i, 6) == "&nbsp;") {
+          if (!last_space && !result.empty()) {
+            result.push_back(' ');
+            last_space = true;
+          }
+          i += 5;
+        }
+        else if (html.substr(i, 5) == "&amp;") {
+          result.push_back('&');
+          last_space = false;
+          i += 4;
+        }
+        else if (html.substr(i, 4) == "&lt;") {
+          result.push_back('<');
+          last_space = false;
+          i += 3;
+        }
+        else if (html.substr(i, 4) == "&gt;") {
+          result.push_back('>');
+          last_space = false;
+          i += 3;
+        }
+        else if (html.substr(i, 6) == "&quot;") {
+          result.push_back('"');
+          last_space = false;
+          i += 5;
+        }
+        else if (html.substr(i, 6) == "&apos;" || html.substr(i, 5) == "&#39;") {
+          result.push_back('\'');
+          last_space = false;
+          i += (html.substr(i, 6) == "&apos;" ? 5 : 4);
+        }
+        else {
+          result.push_back(c);
+          last_space = false;
+        }
+      }
+      else if (c == '\r' || c == '\n' || c == '\t' || c == ' ') {
+        if (!last_space && !result.empty()) {
+          result.push_back(' ');
+          last_space = true;
+        }
+      }
+      else if (static_cast<unsigned char>(c) > 32) {
+        result.push_back(c);
+        last_space = false;
+      }
+    }
+  }
+
+  while (!result.empty() && result.back() == ' ') {
+    result.pop_back();
+  }
+  return result;
+}
+
+std::string extract_rtf_text(std::string_view rtf)
+{
+  std::string result;
+  result.reserve(rtf.size());
+  int brace_depth = 0;
+  bool skip_group = false;
+  int skip_depth = 0;
+
+  for (size_t i = 0; i < rtf.size(); ++i) {
+    char c = rtf[i];
+    if (c == '{') {
+      brace_depth++;
+      if (i + 2 < rtf.size() && rtf[i + 1] == '\\' && rtf[i + 2] == '*') {
+        skip_group = true;
+        skip_depth = brace_depth;
+      }
+      else if (i + 8 < rtf.size() && rtf.substr(i + 1, 8) == "\\fonttbl") {
+        skip_group = true;
+        skip_depth = brace_depth;
+      }
+      else if (i + 9 < rtf.size() && rtf.substr(i + 1, 9) == "\\colortbl") {
+        skip_group = true;
+        skip_depth = brace_depth;
+      }
+      continue;
+    }
+    if (c == '}') {
+      if (skip_group && brace_depth == skip_depth) {
+        skip_group = false;
+      }
+      if (brace_depth > 0) {
+        brace_depth--;
+      }
+      continue;
+    }
+    if (skip_group) {
+      continue;
+    }
+
+    if (c == '\\') {
+      i++;
+      if (i >= rtf.size()) {
+        break;
+      }
+      if (rtf[i] == '\\' || rtf[i] == '{' || rtf[i] == '}') {
+        result.push_back(rtf[i]);
+      }
+      else if (rtf[i] == '\'') {
+        if (i + 2 < rtf.size()) {
+          char hex[3] = {rtf[i + 1], rtf[i + 2], 0};
+          char *end = nullptr;
+          long val = std::strtol(hex, &end, 16);
+          if (end == hex + 2 && val > 0) {
+            result.push_back(static_cast<char>(val));
+          }
+          i += 2;
+        }
+      }
+      else {
+        std::string control;
+        while (i < rtf.size() && std::isalpha(static_cast<unsigned char>(rtf[i]))) {
+          control += rtf[i];
+          i++;
+        }
+        if (i < rtf.size() && (rtf[i] == '-' || std::isdigit(static_cast<unsigned char>(rtf[i])))) {
+          while (i < rtf.size() &&
+                 (rtf[i] == '-' || std::isdigit(static_cast<unsigned char>(rtf[i])))) {
+            i++;
+          }
+        }
+        if (i < rtf.size() && rtf[i] == ' ') {
+          // Trailing delimiter space after control word
+        }
+        else {
+          i--;
+        }
+        if (control == "par" || control == "line") {
+          result.push_back('\n');
+        }
+        else if (control == "tab") {
+          result.push_back(' ');
+        }
+      }
+    }
+    else if (c == '\r' || c == '\n') {
+      // Ignored in RTF format
+    }
+    else {
+      result.push_back(c);
+    }
+  }
+
+  return clean_text(result);
+}
+
+std::string run_unzip(const std::filesystem::path &path, const std::string &pattern)
+{
+  const std::string cmd =
+      "unzip -p " + escape_shell_arg(path.string()) + " " + pattern + " 2>/dev/null";
+  FILE *pipe = popen(cmd.c_str(), "r");
+  if (!pipe) {
+    return {};
+  }
+
+  std::string output;
+  char buffer[4096];
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    output += buffer;
+    if (output.size() >= max_file_size) {
+      break;
+    }
+  }
+  pclose(pipe);
+  return output;
 }
 
 bool is_binary_file(const std::filesystem::path &path)
@@ -212,6 +480,24 @@ std::vector<std::string> Extractor::extract_chunks(const std::filesystem::path &
   else if (ext == ".docx") {
     chunks = extract_docx_file(path);
   }
+  else if (ext == ".xlsx") {
+    chunks = extract_xlsx_file(path);
+  }
+  else if (ext == ".pptx") {
+    chunks = extract_pptx_file(path);
+  }
+  else if (ext == ".odt" || ext == ".ods" || ext == ".odp") {
+    chunks = extract_opendocument_file(path);
+  }
+  else if (ext == ".epub") {
+    chunks = extract_epub_file(path);
+  }
+  else if (ext == ".rtf") {
+    chunks = extract_rtf_file(path);
+  }
+  else if (ext == ".html" || ext == ".htm") {
+    chunks = extract_html_file(path);
+  }
   else if (is_binary_file(path)) {
     return {path.filename().string()};
   }
@@ -261,6 +547,22 @@ std::vector<std::string> Extractor::extract_text_file(const std::filesystem::pat
   }
 
   return chunk_text(content, max_chunks_per_file);
+}
+
+std::vector<std::string> Extractor::extract_html_file(const std::filesystem::path &path)
+{
+  std::ifstream file(path);
+  if (!file) {
+    return {};
+  }
+
+  std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  if (content.empty()) {
+    return {};
+  }
+
+  const std::string cleaned = clean_html_text(content);
+  return chunk_text(cleaned, max_chunks_per_file);
 }
 
 std::vector<std::string> Extractor::extract_pdf_file(const std::filesystem::path &path)
@@ -344,25 +646,72 @@ std::vector<std::string> Extractor::extract_pdf_file(const std::filesystem::path
 
 std::vector<std::string> Extractor::extract_docx_file(const std::filesystem::path &path)
 {
-  const std::string cmd =
-      "unzip -p " + escape_shell_arg(path.string()) + " word/document.xml 2>/dev/null";
-  FILE *pipe = popen(cmd.c_str(), "r");
-  if (!pipe) {
+  const std::string raw = run_unzip(path, "word/document.xml");
+  if (raw.empty()) {
     return {};
   }
 
-  std::string raw_xml;
-  char buffer[4096];
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    raw_xml += buffer;
-  }
-  pclose(pipe);
+  const std::string cleaned = clean_xml_text(raw);
+  return chunk_text(cleaned, max_chunks_per_file);
+}
 
-  if (raw_xml.empty()) {
+std::vector<std::string> Extractor::extract_xlsx_file(const std::filesystem::path &path)
+{
+  const std::string raw = run_unzip(path, "xl/sharedStrings.xml 'xl/worksheets/*.xml'");
+  if (raw.empty()) {
     return {};
   }
 
-  const std::string cleaned = clean_xml_text(raw_xml);
+  const std::string cleaned = clean_xml_text(raw);
+  return chunk_text(cleaned, max_chunks_per_file);
+}
+
+std::vector<std::string> Extractor::extract_pptx_file(const std::filesystem::path &path)
+{
+  const std::string raw = run_unzip(path, "'ppt/slides/slide*.xml'");
+  if (raw.empty()) {
+    return {};
+  }
+
+  const std::string cleaned = clean_xml_text(raw);
+  return chunk_text(cleaned, max_chunks_per_file);
+}
+
+std::vector<std::string> Extractor::extract_opendocument_file(const std::filesystem::path &path)
+{
+  const std::string raw = run_unzip(path, "content.xml");
+  if (raw.empty()) {
+    return {};
+  }
+
+  const std::string cleaned = clean_xml_text(raw);
+  return chunk_text(cleaned, max_chunks_per_file);
+}
+
+std::vector<std::string> Extractor::extract_epub_file(const std::filesystem::path &path)
+{
+  const std::string raw = run_unzip(path, "'*.xhtml' '*.html'");
+  if (raw.empty()) {
+    return {};
+  }
+
+  const std::string cleaned = clean_html_text(raw);
+  return chunk_text(cleaned, max_chunks_per_file);
+}
+
+std::vector<std::string> Extractor::extract_rtf_file(const std::filesystem::path &path)
+{
+  std::ifstream file(path);
+  if (!file) {
+    return {};
+  }
+
+  std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  if (content.empty()) {
+    return {};
+  }
+
+  const std::string cleaned = extract_rtf_text(content);
   return chunk_text(cleaned, max_chunks_per_file);
 }
 
