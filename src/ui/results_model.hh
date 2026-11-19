@@ -1,0 +1,59 @@
+#pragma once
+
+#include "database.hh"
+
+#include <QAbstractListModel>
+#include <QString>
+#include <vector>
+
+namespace lazyfinder
+{
+
+struct DisplayResult
+{
+  QString path;
+  QString fileName;
+  QString directory;
+  QString score;
+  QString snippet;
+  QString category; // "all", "doc", "code", "media", "other"
+  QString iconName;
+};
+
+class ResultsModel : public QAbstractListModel
+{
+  Q_OBJECT
+
+public:
+  enum ResultRoles
+  {
+    PathRole = Qt::UserRole + 1,
+    FileNameRole,
+    DirectoryRole,
+    ScoreRole,
+    SnippetRole,
+    CategoryRole,
+    IconNameRole
+  };
+
+  explicit ResultsModel(QObject *parent = nullptr);
+
+  [[nodiscard]] int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+  [[nodiscard]] QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
+  [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+
+  void setResults(const std::vector<SearchResult> &raw_results, const QString &filter = "all");
+  void setFilter(const QString &filter);
+  void clear();
+
+  [[nodiscard]] QString pathAt(int index) const;
+
+private:
+  void applyFilter();
+
+  std::vector<DisplayResult> all_results_;
+  std::vector<DisplayResult> filtered_results_;
+  QString current_filter_ = "all";
+};
+
+} // namespace lazyfinder

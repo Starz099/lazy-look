@@ -1,14 +1,40 @@
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4)
-pkg_check_modules(ADWAITA REQUIRED IMPORTED_TARGET libadwaita-1)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
-add_executable(lazyfinder
+find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 Widgets REQUIRED)
+
+qt_policy(SET QTP0001 NEW)
+qt_policy(SET QTP0004 NEW)
+
+qt_add_executable(lazyfinder
   main.cc
+  search_controller.cc
+  search_controller.hh
+  results_model.cc
+  results_model.hh
+)
+
+qt_add_qml_module(lazyfinder
+  URI LazyFinder
+  VERSION 1.0
+  QML_FILES
+    qml/Main.qml
+    qml/SearchBox.qml
+    qml/FilterBar.qml
+    qml/ResultsList.qml
+    qml/ResultDelegate.qml
+    qml/SettingsSheet.qml
+    qml/StatusBar.qml
+    qml/OnboardingView.qml
 )
 
 target_link_libraries(lazyfinder
   PRIVATE
     lazyfinder_core
-    PkgConfig::GTK4
-    PkgConfig::ADWAITA
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Widgets
 )

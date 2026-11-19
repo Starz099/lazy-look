@@ -51,7 +51,15 @@ public:
                   const std::vector<std::string> &chunks,
                   const std::vector<std::vector<float>> &embeddings);
 
+  std::optional<std::vector<int64_t>> insert_file_chunks(std::string_view path,
+                                                         int64_t size,
+                                                         int64_t mtime,
+                                                         const std::vector<std::string> &chunks);
+
+  bool insert_chunk_embedding(int64_t chunk_id, const std::vector<float> &embedding);
+
   bool remove_file(std::string_view path);
+  bool remove_directory(std::string_view dir_path);
 
   std::vector<SearchResult> search_hybrid(const std::vector<float> &query_embedding,
                                           std::string_view query_text,

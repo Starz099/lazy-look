@@ -2,6 +2,7 @@
 
 #include "extractor.hh"
 
+#include <iostream>
 #include <sys/stat.h>
 
 namespace lazyfinder
@@ -72,8 +73,17 @@ bool Indexer::is_ignored(const std::filesystem::path &path) const
   return false;
 }
 
-bool Indexer::index_file(const std::filesystem::path &path)
+void Indexer::set_cancel_token(const std::atomic<bool> *token)
 {
+  cancel_token_ = token;
+}
+
+bool Indexer::index_file(const std::filesystem::path &path, ChunkCallback chunk_cb)
+{
+  if (cancel_token_ && cancel_token_->load()) {
+    return false;
+  }
+
   if (!Extractor::is_supported(path) || is_ignored(path)) {
     return false;
   }
@@ -96,18 +106,31 @@ bool Indexer::index_file(const std::filesystem::path &path)
     return false;
   }
 
-  std::vector<std::vector<float>> embeddings;
-  embeddings.reserve(chunks.size());
-
-  for (const auto &chunk : chunks) {
-    auto emb = embedder_.embed_document(chunk);
-    if (emb.empty()) {
-      return false;
-    }
-    embeddings.push_back(std::move(emb));
+  // Stage 1: Insert file record and text chunks immediately for instant lexical (FTS5) search
+  auto chunk_ids = db_.insert_file_chunks(path_str, size, mtime, chunks);
+  if (!chunk_ids.has_value() || chunk_ids->size() != chunks.size()) {
+    return false;
   }
 
-  return db_.index_file(path_str, size, mtime, chunks, embeddings);
+  if (chunk_cb) {
+    chunk_cb(path, 0, chunks.size());
+  }
+
+  // Stage 2: Generate vector embeddings for each chunk
+  for (size_t i = 0; i < chunks.size(); ++i) {
+    if (cancel_token_ && cancel_token_->load()) {
+      return true; // Preserved in lexical index; vector search can resume next sync
+    }
+    auto emb = embedder_.embed_document(chunks[i]);
+    if (!emb.empty()) {
+      db_.insert_chunk_embedding((*chunk_ids)[i], emb);
+    }
+    if (chunk_cb) {
+      chunk_cb(path, i + 1, chunks.size());
+    }
+  }
+
+  return true;
 }
 
 bool Indexer::remove_file(const std::filesystem::path &path)
@@ -115,17 +138,25 @@ bool Indexer::remove_file(const std::filesystem::path &path)
   return db_.remove_file(path.string());
 }
 
-IndexStats Indexer::index_all()
+IndexStats Indexer::index_all(ProgressCallback progress_cb, ChunkCallback chunk_cb)
 {
   IndexStats stats;
 
   for (const auto &dir : watched_dirs_) {
+    if (cancel_token_ && cancel_token_->load()) {
+      break;
+    }
+
     std::error_code ec;
     auto iter = std::filesystem::recursive_directory_iterator(
         dir, std::filesystem::directory_options::skip_permission_denied, ec);
 
     for (auto it = std::filesystem::begin(iter); it != std::filesystem::end(iter);
          it.increment(ec)) {
+      if (cancel_token_ && cancel_token_->load()) {
+        break;
+      }
+
       if (ec) {
         stats.errors++;
         continue;
@@ -153,15 +184,23 @@ IndexStats Indexer::index_all()
       if (stat(entry.path().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
         if (!db_.needs_reindex(entry.path().string(), st.st_size, st.st_mtime)) {
           stats.skipped++;
+          if (progress_cb && (stats.scanned % 100 == 0 || stats.skipped == 1)) {
+            progress_cb(entry.path(), stats.scanned, stats.indexed, stats.skipped);
+          }
           continue;
         }
       }
 
-      if (index_file(entry.path())) {
+      if (index_file(entry.path(), chunk_cb)) {
         stats.indexed++;
+        if (progress_cb) {
+          progress_cb(entry.path(), stats.scanned, stats.indexed, stats.skipped);
+        }
       }
       else {
         stats.errors++;
+        std::cerr << "[Sync] Warning: Failed to index " << entry.path().filename().string()
+                  << std::endl;
       }
     }
   }

@@ -1,6 +1,8 @@
 #include "embedder.hh"
 
+#include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <llama.h>
 #include <mutex>
 #include <string>
@@ -16,7 +18,16 @@ namespace
 void ensure_backend_initialized()
 {
   static std::once_flag flag;
-  std::call_once(flag, []() { llama_backend_init(); });
+  std::call_once(flag, []() {
+    llama_log_set(
+        [](enum ggml_log_level level, const char *text, void *) {
+          if (level >= GGML_LOG_LEVEL_ERROR) {
+            std::fputs(text, stderr);
+          }
+        },
+        nullptr);
+    llama_backend_init();
+  });
 }
 
 void l2_normalize(std::vector<float> &vec)
@@ -42,6 +53,7 @@ struct Embedder::Impl
   llama_context *ctx = nullptr;
   const llama_vocab *vocab = nullptr;
   int32_t n_embd = 0;
+  mutable std::mutex mutex;
 };
 
 Embedder::Embedder() : impl_(std::make_unique<Impl>())
@@ -51,11 +63,16 @@ Embedder::Embedder() : impl_(std::make_unique<Impl>())
 
 Embedder::~Embedder()
 {
-  if (impl_->ctx) {
-    llama_free(impl_->ctx);
-  }
-  if (impl_->model) {
-    llama_model_free(impl_->model);
+  if (impl_) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->ctx) {
+      llama_free(impl_->ctx);
+      impl_->ctx = nullptr;
+    }
+    if (impl_->model) {
+      llama_model_free(impl_->model);
+      impl_->model = nullptr;
+    }
   }
 }
 
@@ -64,6 +81,7 @@ Embedder &Embedder::operator=(Embedder &&) noexcept = default;
 
 bool Embedder::load_model(std::string_view model_path)
 {
+  std::lock_guard<std::mutex> lock(impl_->mutex);
   if (impl_->ctx) {
     llama_free(impl_->ctx);
     impl_->ctx = nullptr;
@@ -74,22 +92,29 @@ bool Embedder::load_model(std::string_view model_path)
   }
 
   llama_model_params mparams = llama_model_default_params();
+  mparams.n_gpu_layers = 99;
   std::string path_str(model_path);
   impl_->model = llama_model_load_from_file(path_str.c_str(), mparams);
   if (!impl_->model) {
     return false;
   }
 
+  const bool gpu_offload = llama_supports_gpu_offload();
+  std::cout << "[LazyFinder Embedder] Loaded model: " << path_str
+            << " (acceleration: " << (gpu_offload ? "Vulkan GPU offload" : "CPU")
+            << ", layers: " << mparams.n_gpu_layers << ")\n";
+
   impl_->vocab = llama_model_get_vocab(impl_->model);
 
   llama_context_params cparams = llama_context_default_params();
   cparams.embeddings = true;
   cparams.pooling_type = LLAMA_POOLING_TYPE_UNSPECIFIED;
-  cparams.n_ctx = 8192;
-  cparams.n_batch = 8192;
+  cparams.n_ctx = 1024;
+  cparams.n_batch = 1024;
+  cparams.n_ubatch = 1024;
 
   const unsigned int hw_threads = std::thread::hardware_concurrency();
-  cparams.n_threads = hw_threads > 0 ? static_cast<int32_t>(hw_threads) : 4;
+  cparams.n_threads = hw_threads > 0 ? std::clamp(static_cast<int32_t>(hw_threads), 2, 6) : 4;
   cparams.n_threads_batch = cparams.n_threads;
 
   impl_->ctx = llama_init_from_model(impl_->model, cparams);
@@ -122,6 +147,7 @@ std::vector<float> Embedder::embed_formatted(std::string_view formatted_text)
   if (!is_loaded() || formatted_text.empty()) {
     return {};
   }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
 
   std::vector<llama_token> tokens(formatted_text.size() + 16);
   int32_t n_tokens = llama_tokenize(impl_->vocab,
@@ -145,6 +171,9 @@ std::vector<float> Embedder::embed_formatted(std::string_view formatted_text)
 
   if (n_tokens <= 0) {
     return {};
+  }
+  if (n_tokens > 1024) {
+    n_tokens = 1024;
   }
   tokens.resize(n_tokens);
 

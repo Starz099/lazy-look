@@ -15,21 +15,31 @@ namespace
 
 std::string default_model_path()
 {
+  std::filesystem::path base;
   const char *xdg_data = std::getenv("XDG_DATA_HOME");
   if (xdg_data && *xdg_data) {
-    return (std::filesystem::path(xdg_data) / "lazyfinder" / "models" /
-            "embeddinggemma-2-BF16.gguf")
-        .string();
+    base = std::filesystem::path(xdg_data) / "lazyfinder" / "models";
+  }
+  else {
+    const char *home = std::getenv("HOME");
+    if (home && *home) {
+      base = std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models";
+    }
   }
 
-  const char *home = std::getenv("HOME");
-  if (home && *home) {
-    return (std::filesystem::path(home) / ".local" / "share" / "lazyfinder" / "models" /
-            "embeddinggemma-2-BF16.gguf")
-        .string();
+  if (!base.empty()) {
+    std::error_code ec;
+    const auto q8_path = base / "embeddinggemma-2-Q8_0.gguf";
+    if (std::filesystem::exists(q8_path, ec)) {
+      return q8_path.string();
+    }
+    const auto bf16_path = base / "embeddinggemma-2-BF16.gguf";
+    if (std::filesystem::exists(bf16_path, ec)) {
+      return bf16_path.string();
+    }
   }
 
-  return "embeddinggemma-2-BF16.gguf";
+  return "embeddinggemma-2-Q8_0.gguf";
 }
 
 } // namespace
@@ -63,7 +73,11 @@ int main(int argc, char *argv[])
     indexer.add_watched_directory(target_dir);
 
     std::printf("Indexing directory: %s\n", argv[2]);
-    const auto stats = indexer.index_all();
+    const auto stats =
+        indexer.index_all([](const std::filesystem::path &p, size_t, size_t indexed, size_t) {
+          std::printf("  [%zu] Indexed: %s\n", indexed, p.filename().string().c_str());
+          std::fflush(stdout);
+        });
 
     std::printf("Done. Scanned: %zu, Newly Indexed: %zu, Unchanged: %zu, Errors: %zu\n",
                 stats.scanned,
@@ -150,6 +164,22 @@ int main(int argc, char *argv[])
     db.remove_file("/test/finance_2026.pdf");
     std::printf(
         "After removal: total files=%ld, total chunks=%ld\n", db.total_files(), db.total_chunks());
+    return 0;
+  }
+
+  if (argc >= 2 && std::string_view(argv[1]) == "--test-embed") {
+    const std::string model_path = default_model_path();
+    lazyfinder::Embedder embedder;
+    std::printf("Loading embedding model...\n");
+    if (!embedder.load_model(model_path)) {
+      std::fprintf(stderr, "Failed to load model from %s\n", model_path.c_str());
+      return 1;
+    }
+    auto t0 = std::chrono::steady_clock::now();
+    auto emb = embedder.embed_query("machine learning semantic search");
+    auto t1 = std::chrono::steady_clock::now();
+    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    std::printf("Embedded query in %.2f ms, dim=%zu\n", ms, emb.size());
     return 0;
   }
 

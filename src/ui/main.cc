@@ -1,20 +1,31 @@
-#include "lazyfinder.hh"
+#include "search_controller.hh"
 
-#include <adwaita.h>
-
-static void on_activate(GtkApplication *app, gpointer)
-{
-  GtkWidget *window = adw_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(window), "LazyFinder");
-  gtk_window_set_default_size(GTK_WINDOW(window), 600, 400);
-  gtk_window_present(GTK_WINDOW(window));
-}
+#include <QApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
 
 int main(int argc, char *argv[])
 {
-  AdwApplication *app = adw_application_new("dev.lazyfinder.app", G_APPLICATION_DEFAULT_FLAGS);
-  g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
-  int status = g_application_run(G_APPLICATION(app), argc, argv);
-  g_object_unref(app);
-  return status;
+  QApplication app(argc, argv);
+  app.setOrganizationName("LazyFinder");
+  app.setApplicationName("LazyFinder");
+
+  QQuickStyle::setStyle("Basic");
+
+  lazyfinder::SearchController controller;
+
+  QQmlApplicationEngine engine;
+  engine.rootContext()->setContextProperty("searchController", &controller);
+
+  QObject::connect(
+      &engine,
+      &QQmlApplicationEngine::objectCreationFailed,
+      &app,
+      []() { QCoreApplication::exit(-1); },
+      Qt::QueuedConnection);
+
+  engine.loadFromModule("LazyFinder", "Main");
+
+  return app.exec();
 }

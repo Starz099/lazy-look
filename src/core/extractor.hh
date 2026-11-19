@@ -15,9 +15,8 @@ public:
 
 private:
   static std::vector<std::string> extract_text_file(const std::filesystem::path &path);
-#ifdef HAVE_POPPLER
   static std::vector<std::string> extract_pdf_file(const std::filesystem::path &path);
-#endif
+  static std::vector<std::string> extract_docx_file(const std::filesystem::path &path);
 };
 
 } // namespace lazyfinder
