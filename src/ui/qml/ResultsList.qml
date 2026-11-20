@@ -21,28 +21,43 @@ Item {
   }
 
   function activateCurrent() {
-    if (listView.currentIndex >= 0 && listView.currentIndex < listView.count) {
-      const p = searchController.resultsModel.pathAt(listView.currentIndex);
-      const page = searchController.resultsModel.pageNumberAt(listView.currentIndex);
-      if (p.length > 0) {
+    var idx = listView.currentIndex;
+    if (idx < 0 && searchController.resultsModel.rowCount() > 0) {
+      idx = 0;
+      listView.currentIndex = 0;
+    }
+    if (idx >= 0 && idx < searchController.resultsModel.rowCount()) {
+      const p = searchController.resultsModel.pathAt(idx);
+      const page = searchController.resultsModel.pageNumberAt(idx);
+      if (p && p.length > 0) {
         searchController.openFile(p, page);
       }
     }
   }
 
   function revealCurrent() {
-    if (listView.currentIndex >= 0 && listView.currentIndex < listView.count) {
-      const p = searchController.resultsModel.pathAt(listView.currentIndex);
-      if (p.length > 0) {
+    var idx = listView.currentIndex;
+    if (idx < 0 && searchController.resultsModel.rowCount() > 0) {
+      idx = 0;
+      listView.currentIndex = 0;
+    }
+    if (idx >= 0 && idx < searchController.resultsModel.rowCount()) {
+      const p = searchController.resultsModel.pathAt(idx);
+      if (p && p.length > 0) {
         searchController.revealInFolder(p);
       }
     }
   }
 
   function copyCurrent() {
-    if (listView.currentIndex >= 0 && listView.currentIndex < listView.count) {
-      const p = searchController.resultsModel.pathAt(listView.currentIndex);
-      if (p.length > 0) {
+    var idx = listView.currentIndex;
+    if (idx < 0 && searchController.resultsModel.rowCount() > 0) {
+      idx = 0;
+      listView.currentIndex = 0;
+    }
+    if (idx >= 0 && idx < searchController.resultsModel.rowCount()) {
+      const p = searchController.resultsModel.pathAt(idx);
+      if (p && p.length > 0) {
         searchController.copyPath(p);
       }
     }

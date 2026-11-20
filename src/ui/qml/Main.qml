@@ -21,6 +21,8 @@ Window {
   onActiveChanged: {
     if (!window.active && !window.settingsOpen) {
       window.visible = false;
+    } else if (window.active && !window.settingsOpen) {
+      searchBox.focusInput();
     }
   }
 

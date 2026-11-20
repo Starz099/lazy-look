@@ -175,8 +175,10 @@ void SearchController::openFile(const QString &path, int pageNumber)
   if (path.isEmpty()) {
     return;
   }
-  DesktopLauncher::open_file(path, pageNumber);
-  emit fileOpened();
+  const bool ok = DesktopLauncher::open_file(path, pageNumber);
+  if (ok) {
+    emit fileOpened();
+  }
 }
 
 void SearchController::revealInFolder(const QString &path)

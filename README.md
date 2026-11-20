@@ -175,15 +175,6 @@ Typing a prefix on its own (such as `code:` or `video:`) will list recent files 
 | `lazylook --enable-autostart` | Enable background autostart on system login |
 | `lazylook --disable-autostart` | Disable autostart on system login |
 
-## Keyboard Navigation
-
-| Key | Description |
-|---|---|
-| `Ctrl + Shift + Space` | Toggle LazyLook floating search window |
-| `Up` / `Down` | Navigate search results |
-| `Return` | Open selected file at matching page or timestamp |
-| `Escape` | Dismiss search window or exit settings |
-
 ## License
 
 MIT License

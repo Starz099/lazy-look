@@ -70,23 +70,14 @@ QString determine_category(const QString &ext)
                                        "odp",
                                        "epub"};
 
-  static const QStringList media_exts = {"png",
-                                         "jpg",
-                                         "jpeg",
-                                         "gif",
-                                         "svg",
-                                         "webp",
-                                         "bmp",
-                                         "ico",
-                                         "mp4",
-                                         "mkv",
-                                         "webm",
-                                         "avi",
-                                         "mov",
-                                         "mp3",
-                                         "wav",
-                                         "ogg",
-                                         "flac"};
+  static const QStringList image_exts = {
+      "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tiff", "tif"};
+
+  static const QStringList video_exts = {
+      "mp4", "mkv", "webm", "avi", "mov", "flv", "wmv", "m4v"};
+
+  static const QStringList audio_exts = {
+      "mp3", "wav", "ogg", "flac", "m4a", "aac", "opus", "wma"};
 
   const QString lower = ext.toLower();
   if (code_exts.contains(lower)) {
@@ -95,8 +86,14 @@ QString determine_category(const QString &ext)
   if (doc_exts.contains(lower)) {
     return "doc";
   }
-  if (media_exts.contains(lower)) {
-    return "media";
+  if (image_exts.contains(lower)) {
+    return "image";
+  }
+  if (video_exts.contains(lower)) {
+    return "video";
+  }
+  if (audio_exts.contains(lower)) {
+    return "audio";
   }
   return "other";
 }
@@ -116,16 +113,14 @@ QString determine_icon(const QString &category, const QString &ext)
     }
     return "document";
   }
-  if (category == "media") {
-    static const QStringList video_exts = {"mp4", "mkv", "webm", "avi", "mov"};
-    static const QStringList audio_exts = {"mp3", "wav", "ogg", "flac"};
-    if (video_exts.contains(lower)) {
-      return "video";
-    }
-    if (audio_exts.contains(lower)) {
-      return "audio";
-    }
+  if (category == "image") {
     return "image";
+  }
+  if (category == "video") {
+    return "video";
+  }
+  if (category == "audio") {
+    return "audio";
   }
   return "file";
 }
@@ -214,7 +209,13 @@ void ResultsModel::setResults(const std::vector<SearchResult> &raw_results, cons
     dr.category = determine_category(fi.suffix());
     dr.iconName = determine_icon(dr.category, fi.suffix());
 
-    if (current_filter_ == "all" || current_filter_.isEmpty() || current_filter_ == dr.category) {
+    const bool matches_filter =
+        (current_filter_ == "all" || current_filter_.isEmpty() ||
+         current_filter_ == dr.category ||
+         (current_filter_ == "media" &&
+          (dr.category == "image" || dr.category == "video" || dr.category == "audio")));
+
+    if (matches_filter) {
       results_.push_back(std::move(dr));
     }
   }

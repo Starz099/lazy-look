@@ -32,17 +32,26 @@ bool try_launch(const QString &executable, const QStringList &args)
 
 bool launch_pdf(const QString &path, int page)
 {
-  if (page <= 1) {
-    return false;
+  if (page > 1) {
+    const QString page_str = QString::number(page);
+    if (try_launch("papers", {"-i", page_str, path})) {
+      return true;
+    }
+    if (try_launch("evince", {"-i", page_str, path})) {
+      return true;
+    }
+    if (try_launch("okular", {"-p", page_str, path})) {
+      return true;
+    }
   }
-  const QString page_str = QString::number(page);
-  if (try_launch("papers", {"-i", page_str, path})) {
+
+  if (try_launch("papers", {path})) {
     return true;
   }
-  if (try_launch("evince", {"-i", page_str, path})) {
+  if (try_launch("evince", {path})) {
     return true;
   }
-  if (try_launch("okular", {"-p", page_str, path})) {
+  if (try_launch("okular", {path})) {
     return true;
   }
   return false;
@@ -50,10 +59,12 @@ bool launch_pdf(const QString &path, int page)
 
 bool launch_presentation(const QString &path, int slide)
 {
-  if (slide <= 1) {
-    return false;
+  if (slide > 1) {
+    if (try_launch("libreoffice", {"--show=" + QString::number(slide), path})) {
+      return true;
+    }
   }
-  return try_launch("libreoffice", {"--show=" + QString::number(slide), path});
+  return try_launch("libreoffice", {path});
 }
 
 QString resolve_target_media_path(const QString &path, const QString &lower)
@@ -72,27 +83,45 @@ QString resolve_target_media_path(const QString &path, const QString &lower)
 
 bool launch_media(const QString &path, int seconds)
 {
-  if (seconds <= 0) {
-    return false;
+  if (seconds > 0) {
+    const QString sec_str = QString::number(seconds);
+    if (try_launch("mpv", {"--start=" + sec_str, path})) {
+      return true;
+    }
+    if (try_launch("vlc", {"--start-time", sec_str, path})) {
+      return true;
+    }
+    if (try_launch("totem",
+                   {"--seek", QString::number(static_cast<qint64>(seconds) * 1000), path})) {
+      return true;
+    }
+    if (try_launch("celluloid", {"--start=" + sec_str, path})) {
+      return true;
+    }
+    if (try_launch("smplayer", {"-start", sec_str, path})) {
+      return true;
+    }
+    if (try_launch("haruna", {"--start=" + sec_str, path})) {
+      return true;
+    }
   }
 
-  const QString sec_str = QString::number(seconds);
-  if (try_launch("mpv", {"--start=" + sec_str, path})) {
+  if (try_launch("mpv", {path})) {
     return true;
   }
-  if (try_launch("vlc", {"--start-time", sec_str, path})) {
+  if (try_launch("vlc", {path})) {
     return true;
   }
-  if (try_launch("totem", {"--seek", QString::number(static_cast<qint64>(seconds) * 1000), path})) {
+  if (try_launch("totem", {path})) {
     return true;
   }
-  if (try_launch("celluloid", {"--start=" + sec_str, path})) {
+  if (try_launch("celluloid", {path})) {
     return true;
   }
-  if (try_launch("smplayer", {"-start", sec_str, path})) {
+  if (try_launch("smplayer", {path})) {
     return true;
   }
-  if (try_launch("haruna", {"--start=" + sec_str, path})) {
+  if (try_launch("haruna", {path})) {
     return true;
   }
   return false;
@@ -100,13 +129,13 @@ bool launch_media(const QString &path, int seconds)
 
 bool launch_desktop_fallback(const QString &path)
 {
-  if (QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
-    return true;
-  }
   if (try_launch("gio", {"open", path})) {
     return true;
   }
-  return try_launch("xdg-open", {path});
+  if (try_launch("xdg-open", {path})) {
+    return true;
+  }
+  return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }
 
 } // namespace
@@ -122,14 +151,13 @@ bool DesktopLauncher::open_file(const QString &path, int page_or_timestamp)
 
   const QString lower = path.toLower();
 
-  if (lower.endsWith(".pdf") && page_or_timestamp > 1) {
+  if (lower.endsWith(".pdf")) {
     if (launch_pdf(path, page_or_timestamp)) {
       return true;
     }
   }
 
-  if ((lower.endsWith(".pptx") || lower.endsWith(".odp") || lower.endsWith(".ppt")) &&
-      page_or_timestamp > 1) {
+  if (lower.endsWith(".pptx") || lower.endsWith(".odp") || lower.endsWith(".ppt")) {
     if (launch_presentation(path, page_or_timestamp)) {
       return true;
     }
@@ -162,7 +190,7 @@ bool DesktopLauncher::open_file(const QString &path, int page_or_timestamp)
 
   const QString target_path = is_media ? resolve_target_media_path(path, lower) : path;
 
-  if (is_media && page_or_timestamp > 0) {
+  if (is_media) {
     if (launch_media(target_path, page_or_timestamp)) {
       return true;
     }

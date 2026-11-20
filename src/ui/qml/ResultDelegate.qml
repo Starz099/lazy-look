@@ -3,7 +3,7 @@ import QtQuick.Controls
 
 Item {
   id: root
-  width: ListView.view.width
+  width: ListView.view ? ListView.view.width : 0
   height: snippetText.text.length > 0 ? 52 : 40
 
   required property int index
@@ -51,21 +51,22 @@ Item {
         anchors.centerIn: parent
         size: 14
         name: {
-          switch (root.category) {
-            case "code": return "code";
-            case "doc": return "doc";
-            case "media": return (root.iconName === "audio" ? "audio" : "video");
-            default: return (root.iconName === "image" ? "image" : "file");
-          }
+          if (root.iconName === "image") return "image";
+          if (root.iconName === "video") return "video";
+          if (root.iconName === "audio") return "audio";
+          if (root.iconName === "code") return "code";
+          if (root.iconName === "pdf" || root.iconName === "markdown" || root.iconName === "doc" || root.category === "doc") return "doc";
+          return "file";
         }
         color: {
           if (root.isSelected) return "#ffffff";
-          switch (root.category) {
-            case "code": return "#60a5fa";
-            case "doc": return "#fbbf24";
-            case "media": return (root.iconName === "audio" ? "#f472b6" : "#a78bfa");
-            default: return (root.iconName === "image" ? "#34d399" : "#94a3b8");
-          }
+          if (root.iconName === "image") return "#34d399";
+          if (root.iconName === "video") return "#a78bfa";
+          if (root.iconName === "audio") return "#f472b6";
+          if (root.iconName === "code") return "#60a5fa";
+          if (root.iconName === "pdf") return "#f87171";
+          if (root.category === "doc") return "#fbbf24";
+          return "#94a3b8";
         }
       }
     }
@@ -139,7 +140,7 @@ Item {
               id: pageLabel
               anchors.centerIn: parent
               text: {
-                if (root.category === "media") {
+                if (root.category === "video" || root.category === "audio" || root.iconName === "video" || root.iconName === "audio") {
                   var m = Math.floor(root.pageNumber / 60);
                   var s = root.pageNumber % 60;
                   return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
@@ -186,10 +187,14 @@ Item {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: {
-      ListView.view.currentIndex = root.index;
+      if (root.ListView && root.ListView.view) {
+        root.ListView.view.currentIndex = root.index;
+      }
       var targetPath = (root.filePath && root.filePath.length > 0) ? root.filePath : searchController.resultsModel.pathAt(root.index);
       var targetPage = (root.pageNumber !== undefined && root.pageNumber > 0) ? root.pageNumber : searchController.resultsModel.pageNumberAt(root.index);
-      searchController.openFile(targetPath, targetPage);
+      if (targetPath && targetPath.length > 0) {
+        searchController.openFile(targetPath, targetPage);
+      }
     }
   }
 }

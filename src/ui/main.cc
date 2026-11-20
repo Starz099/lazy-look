@@ -3,8 +3,11 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDir>
+#include <QFile>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
 #include <QLoggingCategory>
 #include <QMenu>
 #include <QPainter>
@@ -13,6 +16,7 @@
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QSystemTrayIcon>
 #include <iostream>
 #include <unistd.h>
@@ -20,7 +24,7 @@
 namespace
 {
 
-constexpr int kIpcSocketTimeoutMs = 250;
+constexpr int kIpcSocketTimeoutMs = 1500;
 constexpr int kTrayIconWidth = 24;
 constexpr int kTrayIconHeight = 24;
 
@@ -79,13 +83,18 @@ int main(int argc, char *argv[])
   }
 
   const QString serverName = "lazylook_ipc_" + QString::number(getuid());
+  const QString legacyServerName = "lazyfinder_ipc_" + QString::number(getuid());
 
   // Check if another instance is already running
   {
     QLocalSocket socket;
     socket.connectToServer(serverName);
-    if (socket.waitForConnected(kIpcSocketTimeoutMs)) {
-      QString cmd = "TOGGLE";
+    if (!socket.waitForConnected(kIpcSocketTimeoutMs)) {
+      socket.connectToServer(legacyServerName);
+      socket.waitForConnected(300);
+    }
+    if (socket.state() == QLocalSocket::ConnectedState) {
+      QString cmd = parser.isSet(toggleOption) ? "TOGGLE" : "SHOW";
       if (parser.isSet(showOption)) {
         cmd = "SHOW";
       }
@@ -111,9 +120,35 @@ int main(int argc, char *argv[])
     }
   }
 
-  // If the app is NOT running, do NOT launch on --toggle, --hide, or --quit!
-  // The global hotkey only works when the app has been started by user or autostart.
-  if (parser.isSet(toggleOption) || parser.isSet(hideOption) || parser.isSet(quitOption)) {
+  // If the app is NOT running, do not launch on --hide or --quit.
+  // For --toggle or --show, proceed to launch the app!
+  if (parser.isSet(hideOption) || parser.isSet(quitOption)) {
+    return 0;
+  }
+
+  // Enforce single-instance process lock to prevent duplicate tray icons and DB conflicts
+  const QString lockPath =
+      QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + "/lazylook.lock";
+  QLockFile lockFile(lockPath);
+  lockFile.setStaleLockTime(0);
+  if (!lockFile.tryLock(100)) {
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    if (socket.waitForConnected(kIpcSocketTimeoutMs)) {
+      QString cmd = parser.isSet(toggleOption) ? "TOGGLE" : "SHOW";
+      if (parser.isSet(showOption)) {
+        cmd = "SHOW";
+      }
+      else if (parser.isSet(hideOption)) {
+        cmd = "HIDE";
+      }
+      else if (parser.isSet(quitOption)) {
+        cmd = "QUIT";
+      }
+      socket.write((cmd + "\n").toUtf8());
+      socket.flush();
+      socket.waitForBytesWritten(kIpcSocketTimeoutMs);
+    }
     return 0;
   }
 
@@ -126,8 +161,9 @@ int main(int argc, char *argv[])
     lazylook::Config::unregister_gnome_shortcut();
   });
 
-  // Remove any stale socket file from a prior crash
+  // Remove any stale socket files from a prior crash
   QLocalServer::removeServer(serverName);
+  QLocalServer::removeServer(legacyServerName);
 
   auto server = new QLocalServer(&app);
   if (!server->listen(serverName)) {
@@ -161,7 +197,7 @@ int main(int argc, char *argv[])
       window->setVisible(false);
     }
     else {
-      window->setVisible(true);
+      window->show();
       window->raise();
       window->requestActivate();
     }
@@ -169,7 +205,17 @@ int main(int argc, char *argv[])
 
   // Set up System Tray presence
   QSystemTrayIcon trayIcon;
-  QIcon searchIcon = QIcon::fromTheme("lazylook", QIcon::fromTheme("system-search"));
+  QIcon searchIcon = QIcon::fromTheme("lazylook");
+  if (searchIcon.isNull()) {
+    const QString svgPath =
+        QDir::homePath() + "/.local/share/icons/hicolor/scalable/apps/lazylook.svg";
+    if (QFile::exists(svgPath)) {
+      searchIcon = QIcon(svgPath);
+    }
+  }
+  if (searchIcon.isNull()) {
+    searchIcon = QIcon::fromTheme("system-search");
+  }
   if (searchIcon.isNull()) {
     QPixmap pixmap(kTrayIconWidth, kTrayIconHeight);
     pixmap.fill(Qt::transparent);
@@ -250,7 +296,13 @@ int main(int argc, char *argv[])
               window->setVisible(false);
             }
             else {
-              window->setVisible(true);
+              window->setProperty("settingsOpen", false);
+              if (window->windowState() & Qt::WindowMinimized) {
+                window->showNormal();
+              }
+              else {
+                window->show();
+              }
               window->raise();
               window->requestActivate();
             }
@@ -258,7 +310,13 @@ int main(int argc, char *argv[])
         }
         else if (cmd == "SHOW") {
           if (window) {
-            window->setVisible(true);
+            window->setProperty("settingsOpen", false);
+            if (window->windowState() & Qt::WindowMinimized) {
+              window->showNormal();
+            }
+            else {
+              window->show();
+            }
             window->raise();
             window->requestActivate();
           }
