@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${ROOT_DIR}/build"
+BUILD_DIR="${BUILD_DIR:-${ROOT_DIR}/build}"
 APPDIR="${BUILD_DIR}/AppDir"
 
 echo "==> Preparing LazyLook AppDir..."
@@ -104,7 +104,7 @@ fi
 TOOL_PATH="/tmp/appimagetool"
 if [[ ! -f "${TOOL_PATH}" ]]; then
     echo "==> Downloading appimagetool..."
-    curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o "${TOOL_PATH}"
+    curl -fsSL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o "${TOOL_PATH}"
     chmod +x "${TOOL_PATH}"
 fi
 

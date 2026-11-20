@@ -82,7 +82,11 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("searchController", &controller);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     engine.loadFromModule("LazyLook", "Main");
+#else
+    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/LazyLook/qml/Main.qml")));
+#endif
 
     QQuickWindow *window = nullptr;
     const auto rootObjects = engine.rootObjects();
@@ -247,7 +251,11 @@ int main(int argc, char *argv[])
       []() { QCoreApplication::exit(-1); },
       Qt::QueuedConnection);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
   engine.loadFromModule("LazyLook", "Main");
+#else
+  engine.load(QUrl(QStringLiteral("qrc:/qt/qml/LazyLook/qml/Main.qml")));
+#endif
 
   QQuickWindow *window = nullptr;
   const auto rootObjects = engine.rootObjects();

@@ -594,7 +594,8 @@ std::vector<ProcessedChunk> DocumentHandler::extract_pdf(const std::filesystem::
         continue;
       }
 
-      std::string page_text = clean_text(page->text().to_utf8());
+      const auto utf8_bytes = page->text().to_utf8();
+      std::string page_text = clean_text(std::string_view(utf8_bytes.data(), utf8_bytes.size()));
       if (page_text.size() >= kMinExtractedTextLength) {
         if (page_text.size() > max_chunk_chars) {
           page_text.resize(max_chunk_chars);

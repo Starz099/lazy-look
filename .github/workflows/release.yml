@@ -22,19 +22,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ccache ninja-build \
+            build-essential cmake ccache ninja-build pkg-config \
             qt6-base-dev qt6-declarative-dev qt6-tools-dev \
-            libvulkan-dev glslc libsqlite3-dev libpoppler-cpp-dev \
-            rpm dpkg-dev file libfuse2 imagemagick
+            libxkbcommon-dev libgl1-mesa-dev \
+            libvulkan-dev glslc spirv-headers glslang-tools spirv-tools \
+            libsqlite3-dev libpoppler-cpp-dev poppler-utils \
+            unzip ffmpeg \
+            rpm dpkg-dev file imagemagick curl
+          sudo apt-get install -y libfuse2t64 libfuse2 || true
+          sudo apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-shapes || true
+          sudo apt-get install -y qt6-svg-dev || true
 
       - name: Configure CMake
         run: |
+          SPIRV_DIR=$(dirname $(dpkg -L spirv-headers 2>/dev/null | grep 'SPIRV-HeadersConfig\.cmake$' | head -n 1) 2>/dev/null || echo "/usr/share/cmake/SPIRV-Headers")
+          echo "Found SPIRV-Headers at: ${SPIRV_DIR}"
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="/usr;${SPIRV_DIR}" \
+            -DSPIRV-Headers_DIR="${SPIRV_DIR}" \
             -DGGML_VULKAN=ON
 
       - name: Build LazyLook
-        run: cmake --build build --target lazylook -j$(nproc)
+        run: cmake --build build -j$(nproc)
 
       - name: Run Test Suite
         run: ctest --test-dir build --output-on-failure

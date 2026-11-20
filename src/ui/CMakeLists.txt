@@ -3,8 +3,10 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 Widgets DBus Network REQUIRED)
 
-qt_policy(SET QTP0001 NEW)
-qt_policy(SET QTP0004 NEW)
+if(COMMAND qt_policy)
+  qt_policy(SET QTP0001 NEW)
+  qt_policy(SET QTP0004 NEW)
+endif()
 
 qt_add_executable(lazylook
   main.cc
@@ -19,6 +21,7 @@ qt_add_executable(lazylook
 qt_add_qml_module(lazylook
   URI LazyLook
   VERSION 1.0
+  RESOURCE_PREFIX "/qt/qml"
   QML_FILES
     qml/Main.qml
     qml/SearchBox.qml

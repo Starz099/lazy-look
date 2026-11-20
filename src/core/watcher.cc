@@ -253,7 +253,7 @@ void Watcher::stop()
 
   if (impl_->stop_fd >= 0) {
     uint64_t val = 1;
-    write(impl_->stop_fd, &val, sizeof(val));
+    [[maybe_unused]] ssize_t written = write(impl_->stop_fd, &val, sizeof(val));
   }
 
   if (impl_->worker_thread.joinable()) {
