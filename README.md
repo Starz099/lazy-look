@@ -2,6 +2,18 @@
 
 LazyLook is a fast, local semantic file search tool for Linux desktop environments. It allows you to search files using natural language descriptions, exact keywords, or filenames through a lightweight, floating search bar.
 
+<p align="center">
+  <img src="resources/screenshots/search.png" alt="LazyLook Search" width="580">
+  <br>
+  <em>Default search interface with natural language and keyword search</em>
+</p>
+
+<p align="center">
+  <img src="resources/screenshots/preferences.png" alt="LazyLook Preferences" width="580">
+  <br>
+  <em>Preferences sheet for watched directories, AI model management, and system settings</em>
+</p>
+
 ## Features
 
 - **Hybrid Search**: Combines local neural vector embeddings (EmbeddingGemma-2 Q8_0 model accelerated via Vulkan GPU offload) with SQLite FTS5 full-text keyword indexing and trigram file name matching using Reciprocal Rank Fusion (RRF).

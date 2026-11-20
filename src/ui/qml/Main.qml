@@ -54,6 +54,7 @@ Window {
       // Search Box
       SearchBox {
         id: searchBox
+        objectName: "searchBox"
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right

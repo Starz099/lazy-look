@@ -18,6 +18,7 @@
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
+#include <QThread>
 #include <iostream>
 #include <unistd.h>
 
@@ -57,6 +58,9 @@ int main(int argc, char *argv[])
                                            "Enable LazyLook autostart on system login.");
   QCommandLineOption disableAutostartOption("disable-autostart",
                                             "Disable LazyLook autostart on system login.");
+  QCommandLineOption captureOption("capture-screenshots",
+                                   "Capture UI screenshots into target directory and exit.",
+                                   "dir");
 
   parser.addOption(toggleOption);
   parser.addOption(showOption);
@@ -65,8 +69,67 @@ int main(int argc, char *argv[])
   parser.addOption(daemonOption);
   parser.addOption(enableAutostartOption);
   parser.addOption(disableAutostartOption);
+  parser.addOption(captureOption);
 
   parser.process(app);
+
+  if (parser.isSet(captureOption)) {
+    const QString outDir = parser.value(captureOption);
+    QDir().mkpath(outDir);
+
+    QQuickStyle::setStyle("Basic");
+    lazylook::SearchController controller;
+
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("searchController", &controller);
+    engine.loadFromModule("LazyLook", "Main");
+
+    QQuickWindow *window = nullptr;
+    const auto rootObjects = engine.rootObjects();
+    if (!rootObjects.isEmpty()) {
+      window = qobject_cast<QQuickWindow *>(rootObjects.first());
+    }
+
+    if (!window) {
+      std::cerr << "Failed to initialize window for screenshots" << std::endl;
+      return 1;
+    }
+
+    auto searchBox = window->findChild<QQuickItem *>("searchBox");
+    if (searchBox) {
+      searchBox->setProperty("text", "");
+    }
+    controller.resultsModel()->clear();
+
+    window->setProperty("settingsOpen", false);
+    window->show();
+
+    for (int i = 0; i < 40; ++i) {
+      app.processEvents();
+      QThread::msleep(15);
+    }
+
+    const QImage searchImg = window->grabWindow();
+    const QString searchPath = outDir + "/search.png";
+    if (searchImg.save(searchPath)) {
+      std::cout << "Saved screenshot: " << searchPath.toStdString() << std::endl;
+    }
+
+    window->setProperty("settingsOpen", true);
+
+    for (int i = 0; i < 40; ++i) {
+      app.processEvents();
+      QThread::msleep(15);
+    }
+
+    const QImage prefsImg = window->grabWindow();
+    const QString prefsPath = outDir + "/preferences.png";
+    if (prefsImg.save(prefsPath)) {
+      std::cout << "Saved screenshot: " << prefsPath.toStdString() << std::endl;
+    }
+
+    return 0;
+  }
 
   if (parser.isSet(enableAutostartOption)) {
     lazylook::Config::instance().load();
