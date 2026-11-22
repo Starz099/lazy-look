@@ -231,13 +231,17 @@ bool DesktopLauncher::reveal_in_folder(const QString &path)
 
 void DesktopLauncher::copy_path(const QString &path)
 {
-  if (path.isEmpty()) {
+  copy_to_clipboard(path);
+}
+
+void DesktopLauncher::copy_to_clipboard(const QString &text)
+{
+  if (text.isEmpty()) {
     return;
   }
-
   QClipboard *clipboard = QGuiApplication::clipboard();
   if (clipboard) {
-    clipboard->setText(path);
+    clipboard->setText(text);
   }
 }
 

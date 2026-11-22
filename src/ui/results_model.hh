@@ -49,6 +49,7 @@ public:
   void setResults(const std::vector<SearchResult> &raw_results, const QString &filter = "all");
   void setFilter(const QString &filter);
   void clear();
+  bool updateFilePath(const QString &old_path, const QString &new_path);
 
   [[nodiscard]] Q_INVOKABLE QString pathAt(int index) const;
   [[nodiscard]] Q_INVOKABLE int pageNumberAt(int index) const;

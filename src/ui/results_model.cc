@@ -73,11 +73,9 @@ QString determine_category(const QString &ext)
   static const QStringList image_exts = {
       "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tiff", "tif"};
 
-  static const QStringList video_exts = {
-      "mp4", "mkv", "webm", "avi", "mov", "flv", "wmv", "m4v"};
+  static const QStringList video_exts = {"mp4", "mkv", "webm", "avi", "mov", "flv", "wmv", "m4v"};
 
-  static const QStringList audio_exts = {
-      "mp3", "wav", "ogg", "flac", "m4a", "aac", "opus", "wma"};
+  static const QStringList audio_exts = {"mp3", "wav", "ogg", "flac", "m4a", "aac", "opus", "wma"};
 
   const QString lower = ext.toLower();
   if (code_exts.contains(lower)) {
@@ -195,6 +193,9 @@ void ResultsModel::setResults(const std::vector<SearchResult> &raw_results, cons
   results_.reserve(raw_results.size());
 
   for (const auto &r : raw_results) {
+    if (r.path.empty()) {
+      continue;
+    }
     std::filesystem::path p(r.path);
     DisplayResult dr;
     dr.path = QString::fromStdString(r.path);
@@ -210,8 +211,7 @@ void ResultsModel::setResults(const std::vector<SearchResult> &raw_results, cons
     dr.iconName = determine_icon(dr.category, fi.suffix());
 
     const bool matches_filter =
-        (current_filter_ == "all" || current_filter_.isEmpty() ||
-         current_filter_ == dr.category ||
+        (current_filter_ == "all" || current_filter_.isEmpty() || current_filter_ == dr.category ||
          (current_filter_ == "media" &&
           (dr.category == "image" || dr.category == "video" || dr.category == "audio")));
 
@@ -249,6 +249,22 @@ int ResultsModel::pageNumberAt(int index) const
     return results_[static_cast<size_t>(index)].pageNumber;
   }
   return 0;
+}
+
+bool ResultsModel::updateFilePath(const QString &old_path, const QString &new_path)
+{
+  for (size_t i = 0; i < results_.size(); ++i) {
+    if (results_[i].path == old_path) {
+      std::filesystem::path p(new_path.toStdString());
+      results_[i].path = new_path;
+      results_[i].fileName = QString::fromStdString(p.filename().string());
+      results_[i].directory = format_display_dir(p);
+      const QModelIndex idx = index(static_cast<int>(i));
+      emit dataChanged(idx, idx, {PathRole, FileNameRole, DirectoryRole});
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace lazylook

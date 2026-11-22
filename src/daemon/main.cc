@@ -72,7 +72,10 @@ int main(int argc, char *argv[])
       return 1;
     }
 
-    const auto query_emb = embedder.embed_query(query_text);
+    auto parsed = lazylook::Database::parse_query_category(query_text);
+    std::string embed_text = parsed.text.empty() ? std::string(query_text) : parsed.text;
+    const auto query_emb =
+        embed_text.empty() ? std::vector<float>{} : embedder.embed_query(embed_text);
     const auto results = db.search_hybrid(query_emb, query_text, 10);
 
     if (results.empty()) {

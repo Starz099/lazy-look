@@ -7,6 +7,12 @@
 #include <string_view>
 #include <vector>
 
+// Forward-declare to keep the header include-light.
+namespace lazylook
+{
+struct TemporalMatch;
+}
+
 namespace lazylook
 {
 
@@ -52,6 +58,9 @@ struct ParsedQuery
 {
   QueryCategory category = QueryCategory::All;
   std::string text;
+  // Optional mtime lower-bound extracted from a temporal NL hint (epoch secs).
+  // Zero means "no time filter".
+  int64_t mtime_cutoff = 0;
 };
 
 class Database
@@ -99,6 +108,15 @@ public:
   std::vector<SearchResult> search_hybrid(const std::vector<float> &query_embedding,
                                           std::string_view query_text,
                                           size_t limit = 20);
+
+  // Returns the indexed text content (OCR or extracted) for the first chunk
+  // of the given file path.  Returns an empty string if no text was indexed or
+  // the file is not in the database.
+  std::string get_file_text(std::string_view path);
+
+  // Updates the stored file path in the database (used after a rename).
+  // Returns true on success.
+  bool rename_file(std::string_view old_path, std::string_view new_path);
 
   int64_t total_files();
   int64_t total_chunks();

@@ -419,9 +419,77 @@ void test_query_category_prefixes()
   auto all_res = db.search_hybrid({}, "compute_value", 10);
   TEST_ASSERT(all_res.size() == 5, "Unfiltered query returns all 5 matching files");
 
+  // Query with category and unrelated term -> MUST return 0 results
+  auto none_res = db.search_hybrid({}, "image: completely_nonexistent_token", 10);
+  TEST_ASSERT(none_res.empty(), "Unrelated query with category prefix returns 0 results");
+
+  // Query filename match in different category -> MUST return 0 results
+  // ("math" is in src/math.cpp, so "image: math" must NOT return math.cpp)
+  auto wrong_cat_res = db.search_hybrid({}, "image: math", 10);
+  TEST_ASSERT(wrong_cat_res.empty(), "Filename match in wrong category must return 0 results");
+
   db.close();
   std::filesystem::remove(db_path);
   std::cout << "  ✓ Query category prefixes and filtering passed." << std::endl;
+}
+
+void test_file_text_rename_and_temporal()
+{
+  std::cout << "[Test] File text retrieval, rename, and temporal queries..." << std::endl;
+
+  const std::string db_path = "/tmp/test_ft_rename_" + std::to_string(std::rand()) + ".db";
+  lazylook::Database db;
+  TEST_ASSERT(db.open(db_path), "Database opened");
+
+  const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(
+                          std::chrono::system_clock::now().time_since_epoch())
+                          .count();
+
+  // Insert recent file (today)
+  const std::string path_recent = "/docs/budget_today.pdf";
+  db.insert_file_chunks(path_recent, 1024, now - 3600, {"Q3 Financial Budget Plan for 2026"});
+
+  // Insert older file (last month)
+  const std::string path_old = "/docs/budget_old.pdf";
+  db.insert_file_chunks(path_old, 2048, now - (86400 * 60), {"Q1 Financial Budget Plan for 2026"});
+
+  // 1. Test get_file_text
+  std::string text_recent = db.get_file_text(path_recent);
+  TEST_ASSERT(text_recent.find("Financial Budget") != std::string::npos,
+              "get_file_text finds content");
+
+  std::string non_existent = db.get_file_text("/does/not/exist.txt");
+  TEST_ASSERT(non_existent.empty(), "get_file_text on non-existent file returns empty string");
+
+  // 2. Test rename_file
+  const std::string path_renamed = "/docs/budget_2026_final.pdf";
+  TEST_ASSERT(db.rename_file(path_recent, path_renamed), "rename_file returns true");
+  TEST_ASSERT(db.get_file(path_recent) == std::nullopt, "Old path no longer in database");
+  TEST_ASSERT(db.get_file(path_renamed).has_value(), "New path exists in database");
+  TEST_ASSERT(db.get_file_text(path_renamed).find("Financial Budget") != std::string::npos,
+              "New path maintains indexed chunk text");
+
+  // 3. Test temporal search query
+  // "Financial this week" -> should match only the recent file (now renamed to path_renamed)
+  auto week_res = db.search_hybrid({}, "Financial this week", 10);
+  TEST_ASSERT(week_res.size() == 1, "Only recent file matched with 'this week'");
+  TEST_ASSERT(week_res[0].path == path_renamed, "Matched file is path_renamed");
+
+  // 4. Test pure temporal query (no keywords)
+  // "this week" alone -> should match path_renamed and NOT require literal words "this" or "week"
+  auto pure_temporal_res = db.search_hybrid({}, "this week", 10);
+  TEST_ASSERT(pure_temporal_res.size() == 1,
+              "Pure temporal query matches 1 file within time window");
+  TEST_ASSERT(pure_temporal_res[0].path == path_renamed,
+              "Pure temporal query matches path_renamed");
+
+  // Unconstrained search -> should match both
+  auto all_res = db.search_hybrid({}, "Financial", 10);
+  TEST_ASSERT(all_res.size() == 2, "Unfiltered query matches both files");
+
+  db.close();
+  std::filesystem::remove(db_path);
+  std::cout << "  ✓ File text, rename, and temporal queries passed." << std::endl;
 }
 
 int main()
@@ -437,6 +505,7 @@ int main()
   test_utf8_snippet_cleanliness();
   test_video_chunks_and_thumbnails();
   test_query_category_prefixes();
+  test_file_text_rename_and_temporal();
 
   std::cout << "========================================" << std::endl;
   std::cout << "ALL DATABASE TESTS PASSED SUCCESSFULLY! " << std::endl;

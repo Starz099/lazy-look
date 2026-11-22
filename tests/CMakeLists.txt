@@ -37,3 +37,11 @@ target_link_libraries(test_indexer_watcher
   PRIVATE lazylook_core
 )
 add_test(NAME IndexerWatcherTests COMMAND test_indexer_watcher)
+
+add_executable(test_temporal_parser
+  test_temporal_parser.cc
+)
+target_link_libraries(test_temporal_parser
+  PRIVATE lazylook_core
+)
+add_test(NAME TemporalParserTests COMMAND test_temporal_parser)

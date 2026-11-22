@@ -91,6 +91,22 @@ public:
   Q_INVOKABLE void revealInFolder(const QString &path);
   Q_INVOKABLE void copyPath(const QString &path);
 
+  // --- Feature: OCR / indexed text copy ---
+  // Returns the indexed text content for an image file (OCR result or embedded
+  // text).  Empty string if no text was indexed for this file.
+  Q_INVOKABLE QString getImageText(const QString &path);
+  // Copies the indexed text for an image file to the system clipboard.
+  Q_INVOKABLE void copyImageText(const QString &path);
+
+  // --- Feature: Smart rename ---
+  // Derives a suggested filename (without extension) from the indexed content
+  // of the file at `path`.  Returns an empty string on failure.
+  Q_INVOKABLE QString suggestFileName(const QString &path);
+  // Renames the file at `oldPath` to `newName` (just the filename, no path
+  // separators) keeping the same directory and extension.  Updates the DB.
+  // Returns true on success.
+  Q_INVOKABLE bool renameFileTo(const QString &oldPath, const QString &newName);
+
   Q_INVOKABLE void addWatchedDirectory(const QString &dir);
   Q_INVOKABLE void removeWatchedDirectory(const QString &dir);
   Q_INVOKABLE void chooseFolderAndAdd();

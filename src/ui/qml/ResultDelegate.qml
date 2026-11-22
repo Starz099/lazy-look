@@ -19,6 +19,12 @@ Item {
 
   property bool isSelected: ListView.isCurrentItem
 
+  // ---------------------------------------------------------------------------
+  // Rename dialog state
+  // ---------------------------------------------------------------------------
+  property bool renameActive: false
+  property string renameValue: ""
+
   Rectangle {
     id: bg
     anchors.fill: parent
@@ -110,11 +116,13 @@ Item {
         width: parent.width
         height: 18
 
+        // Normal display row (hidden while renaming)
         Row {
           id: labelRow
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           spacing: 6
+          visible: !root.renameActive
 
           Text {
             id: fileNameText
@@ -153,6 +161,52 @@ Item {
           }
         }
 
+        // Inline rename input (shown while renaming)
+        Rectangle {
+          id: renameBox
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          height: 20
+          radius: 4
+          visible: root.renameActive
+          color: "#1a1918"
+          border.color: "#f59e0b"
+          border.width: 1
+
+          TextInput {
+            id: renameInput
+            anchors.fill: parent
+            anchors.leftMargin: 6
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            color: "#f5f5f5"
+            font.pixelSize: 12
+            text: root.renameValue
+            selectByMouse: true
+            selectionColor: "#3f5675"
+            selectedTextColor: "#ffffff"
+            clip: true
+
+            onTextChanged: {
+              root.renameValue = renameInput.text;
+            }
+
+            Keys.onReturnPressed: {
+              const name = renameInput.text.trim();
+              if (name.length > 0) {
+                const targetPath = (root.filePath && root.filePath.length > 0) ? root.filePath : searchController.resultsModel.pathAt(root.index);
+                searchController.renameFileTo(targetPath, name);
+              }
+              root.renameActive = false;
+            }
+
+            Keys.onEscapePressed: {
+              root.renameActive = false;
+            }
+          }
+        }
+
         Text {
           id: dirText
           anchors.left: labelRow.right
@@ -164,6 +218,7 @@ Item {
           color: root.isSelected ? "#c8d4e4" : "#9e9c99"
           elide: Text.ElideMiddle
           maximumLineCount: 1
+          visible: !root.renameActive
         }
       }
 
@@ -172,7 +227,7 @@ Item {
         id: snippetText
         width: parent.width
         text: root.snippet
-        visible: root.snippet.length > 0
+        visible: root.snippet.length > 0 && !root.renameActive
         font.pixelSize: 11
         color: root.isSelected ? "#d4e0ee" : "#a8a6a3"
         elide: Text.ElideRight
@@ -186,7 +241,16 @@ Item {
     anchors.fill: parent
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-    onClicked: {
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+    onClicked: (mouse) => {
+      if (mouse.button === Qt.RightButton) {
+        if (root.ListView && root.ListView.view) {
+          root.ListView.view.currentIndex = root.index;
+        }
+        contextMenu.popup();
+        return;
+      }
       if (root.ListView && root.ListView.view) {
         root.ListView.view.currentIndex = root.index;
       }
@@ -197,4 +261,135 @@ Item {
       }
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Right-click context menu
+  // ---------------------------------------------------------------------------
+  Menu {
+    id: contextMenu
+    background: Rectangle {
+      color: "#2d2c2a"
+      border.color: Qt.rgba(255, 255, 255, 0.12)
+      border.width: 1
+      radius: 8
+    }
+
+    MenuItem {
+      id: openMenuItem
+      text: "Open"
+      onTriggered: {
+        searchController.openFile(root.filePath, root.pageNumber);
+      }
+      contentItem: Text {
+        text: openMenuItem.text
+        font.pixelSize: 13
+        color: "#f5f5f5"
+        leftPadding: 12
+        verticalAlignment: Text.AlignVCenter
+      }
+      background: Rectangle {
+        color: openMenuItem.highlighted ? "#3f5675" : "transparent"
+        radius: 6
+      }
+    }
+
+    MenuItem {
+      id: revealMenuItem
+      text: "Show in Folder"
+      onTriggered: {
+        searchController.revealInFolder(root.filePath);
+      }
+      contentItem: Text {
+        text: revealMenuItem.text
+        font.pixelSize: 13
+        color: "#f5f5f5"
+        leftPadding: 12
+        verticalAlignment: Text.AlignVCenter
+      }
+      background: Rectangle {
+        color: revealMenuItem.highlighted ? "#3f5675" : "transparent"
+        radius: 6
+      }
+    }
+
+    MenuItem {
+      id: copyPathMenuItem
+      text: "Copy Path"
+      onTriggered: {
+        searchController.copyPath(root.filePath);
+      }
+      contentItem: Text {
+        text: copyPathMenuItem.text
+        font.pixelSize: 13
+        color: "#f5f5f5"
+        leftPadding: 12
+        verticalAlignment: Text.AlignVCenter
+      }
+      background: Rectangle {
+        color: copyPathMenuItem.highlighted ? "#3f5675" : "transparent"
+        radius: 6
+      }
+    }
+
+    // OCR copy: shown only for image results
+    MenuItem {
+      id: copyOcrMenuItem
+      text: "Copy Image Text"
+      visible: root.category === "image"
+      height: root.category === "image" ? implicitHeight : 0
+      onTriggered: {
+        searchController.copyImageText(root.filePath);
+      }
+      contentItem: Text {
+        text: copyOcrMenuItem.text
+        font.pixelSize: 13
+        color: "#34d399"
+        leftPadding: 12
+        verticalAlignment: Text.AlignVCenter
+      }
+      background: Rectangle {
+        color: copyOcrMenuItem.highlighted ? "#3f5675" : "transparent"
+        radius: 6
+      }
+    }
+
+    // Divider before rename
+    MenuSeparator {
+      contentItem: Rectangle {
+        implicitHeight: 1
+        color: Qt.rgba(255, 255, 255, 0.08)
+      }
+      background: Item {}
+    }
+
+    // Rename: suggest a name, then let user edit inline
+    MenuItem {
+      id: renameMenuItem
+      text: "Rename…"
+      onTriggered: {
+        const suggested = searchController.suggestFileName(root.filePath);
+        const fi_base = root.fileName;
+        // Strip extension from displayed filename to seed the rename box
+        const dot = fi_base.lastIndexOf('.');
+        root.renameValue = suggested.length > 0 ? suggested : (dot > 0 ? fi_base.substring(0, dot) : fi_base);
+        root.renameActive = true;
+        Qt.callLater(function() {
+          renameInput.forceActiveFocus();
+          renameInput.selectAll();
+        });
+      }
+      contentItem: Text {
+        text: renameMenuItem.text
+        font.pixelSize: 13
+        color: "#f5f5f5"
+        leftPadding: 12
+        verticalAlignment: Text.AlignVCenter
+      }
+      background: Rectangle {
+        color: renameMenuItem.highlighted ? "#3f5675" : "transparent"
+        radius: 6
+      }
+    }
+  }
 }
+

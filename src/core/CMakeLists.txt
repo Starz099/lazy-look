@@ -46,6 +46,7 @@ add_library(lazylook_core STATIC
   lazylook.cc
   embedder.cc
   database.cc
+  temporal_parser.cc
   extractor.cc
   indexer.cc
   config.cc

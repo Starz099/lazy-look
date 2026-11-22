@@ -4,6 +4,7 @@
 
 #include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -189,6 +190,147 @@ void SearchController::revealInFolder(const QString &path)
 void SearchController::copyPath(const QString &path)
 {
   DesktopLauncher::copy_path(path);
+}
+
+// ---------------------------------------------------------------------------
+// Feature: OCR / indexed text copy
+// ---------------------------------------------------------------------------
+
+QString SearchController::getImageText(const QString &path)
+{
+  if (path.isEmpty()) {
+    return {};
+  }
+  const std::string text = db_.get_file_text(path.toStdString());
+  if (text.empty()) {
+    return {};
+  }
+  const QString full = QString::fromStdString(text);
+  const int idx = full.indexOf("\nText: ");
+  if (idx >= 0) {
+    return full.mid(idx + 7).trimmed();
+  }
+  const int nl = full.indexOf('\n');
+  const QString body = (nl >= 0 ? full.mid(nl + 1) : full).trimmed();
+  if (body.startsWith("[Image]")) {
+    // Technical metadata without extracted OCR text
+    return {};
+  }
+  return body;
+}
+
+void SearchController::copyImageText(const QString &path)
+{
+  const QString text = getImageText(path);
+  if (text.isEmpty()) {
+    return;
+  }
+  DesktopLauncher::copy_to_clipboard(text);
+}
+
+// ---------------------------------------------------------------------------
+// Feature: Smart rename
+// ---------------------------------------------------------------------------
+
+QString SearchController::suggestFileName(const QString &path)
+{
+  if (path.isEmpty()) {
+    return {};
+  }
+  const std::string raw = db_.get_file_text(path.toStdString());
+  if (raw.empty()) {
+    return {};
+  }
+  const QString full = QString::fromStdString(raw);
+  QString body;
+  const int ocr_idx = full.indexOf("\nText: ");
+  if (ocr_idx >= 0) {
+    body = full.mid(ocr_idx + 7).trimmed();
+  }
+  else {
+    const int nl = full.indexOf('\n');
+    body = (nl >= 0 ? full.mid(nl + 1) : full).trimmed();
+    if (body.startsWith("[Image]")) {
+      return {};
+    }
+  }
+
+  // Heuristic: take the first meaningful non-empty line of content (up to 60
+  // chars), clean it up into a valid filename slug.
+  const QStringList lines = body.split('\n', Qt::SkipEmptyParts);
+  QString candidate;
+  for (const QString &line : lines) {
+    const QString trimmed = line.trimmed();
+    if (trimmed.length() >= 4) {
+      candidate = trimmed.left(60);
+      break;
+    }
+  }
+  if (candidate.isEmpty()) {
+    return {};
+  }
+
+  // Convert to a safe filename slug: keep alphanumeric, replace spaces/special
+  // chars with hyphens, collapse repeated hyphens, strip leading/trailing ones.
+  QString slug;
+  slug.reserve(candidate.size());
+  bool prev_hyphen = false;
+  for (QChar ch : candidate) {
+    if (ch.isLetterOrNumber()) {
+      slug.append(ch.toLower());
+      prev_hyphen = false;
+    }
+    else if (!prev_hyphen && !slug.isEmpty()) {
+      slug.append('-');
+      prev_hyphen = true;
+    }
+  }
+  while (!slug.isEmpty() && slug.back() == '-') {
+    slug.chop(1);
+  }
+  return slug;
+}
+
+bool SearchController::renameFileTo(const QString &oldPath, const QString &newName)
+{
+  const QString trimmed = newName.trimmed();
+  if (oldPath.isEmpty() || trimmed.isEmpty()) {
+    return false;
+  }
+  // Reject directory traversal, special directory names, and path separators.
+  if (trimmed.contains('/') || trimmed.contains('\\') || trimmed == "." || trimmed == "..") {
+    return false;
+  }
+
+  const QFileInfo fi(oldPath);
+  const QString dir = fi.absolutePath();
+  const QString suffix = fi.suffix().isEmpty() ? QString{} : ('.' + fi.suffix());
+
+  QString newFileName = trimmed;
+  if (!suffix.isEmpty() && !trimmed.endsWith(suffix, Qt::CaseInsensitive)) {
+    newFileName += suffix;
+  }
+  const QString newPath = dir + '/' + newFileName;
+
+  // Refuse to overwrite an existing different file.
+  if (QFileInfo::exists(newPath) && newPath != oldPath) {
+    return false;
+  }
+
+  if (newPath == oldPath) {
+    return true;
+  }
+
+  if (!QFile::rename(oldPath, newPath)) {
+    return false;
+  }
+
+  // Update the database entry.
+  db_.rename_file(oldPath.toStdString(), newPath.toStdString());
+
+  // Update in-memory ResultsModel so UI reflects new name and subsequent actions work!
+  results_model_.updateFilePath(oldPath, newPath);
+  return true;
 }
 
 QStringList SearchController::watchedDirectories() const

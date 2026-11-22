@@ -1,5 +1,7 @@
 #include "database.hh"
 
+#include "temporal_parser.hh"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -476,7 +478,17 @@ std::string default_database_path()
 
 ParsedQuery Database::parse_query_category(std::string_view query)
 {
-  return do_parse_query_category(query);
+  ParsedQuery result = do_parse_query_category(query);
+
+  // After stripping the type prefix, check the remaining text for a temporal
+  // hint (e.g. "last week", "past 3 days", "yesterday").
+  std::string_view text_to_scan = result.text.empty() ? query : std::string_view(result.text);
+  if (auto temporal = parse_temporal_hint(text_to_scan)) {
+    result.mtime_cutoff = temporal->cutoff_secs;
+    result.text = std::move(temporal->cleaned_query);
+  }
+
+  return result;
 }
 
 bool Database::path_matches_category(std::string_view path, QueryCategory category)
@@ -896,29 +908,49 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
 
   // Dense vector kNN search
   if (!query_embedding.empty()) {
-    const char *vec_sql = R"(
-      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
-      FROM vec_chunks v
-      JOIN chunks c ON c.id = v.chunk_id
-      JOIN files f ON f.id = c.file_id
-      WHERE v.embedding MATCH ? AND k = ?
-      ORDER BY v.distance;
-    )";
+    // Build SQL: optionally add mtime filter.
+    const std::string vec_sql = parsed.mtime_cutoff > 0 ? R"(
+            SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path, v.distance
+            FROM vec_chunks v
+            JOIN chunks c ON c.id = v.chunk_id
+            JOIN files f ON f.id = c.file_id
+            WHERE v.embedding MATCH ? AND k = ? AND f.mtime >= ?
+            ORDER BY v.distance;
+          )"
+                                                        : R"(
+            SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path, v.distance
+            FROM vec_chunks v
+            JOIN chunks c ON c.id = v.chunk_id
+            JOIN files f ON f.id = c.file_id
+            WHERE v.embedding MATCH ? AND k = ?
+            ORDER BY v.distance;
+          )";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(impl_->db, vec_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    if (sqlite3_prepare_v2(impl_->db, vec_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
       sqlite3_bind_blob(stmt,
                         1,
                         query_embedding.data(),
                         static_cast<int>(query_embedding.size() * sizeof(float)),
                         SQLITE_STATIC);
       sqlite3_bind_int(stmt, 2, top_k);
+      if (parsed.mtime_cutoff > 0) {
+        sqlite3_bind_int64(stmt, 3, parsed.mtime_cutoff);
+      }
 
       int rank = 1;
       std::unordered_set<int64_t> seen_vec_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
-        if (path_str && !path_matches_category(path_str, parsed.category)) {
+        if (!path_str || !path_matches_category(path_str, parsed.category)) {
+          continue;
+        }
+
+        const double distance = sqlite3_column_double(stmt, 6);
+        // Minimum cosine similarity cutoff: distant vectors (> 0.255 distance) are not semantically
+        // related
+        constexpr double kMaxCosineDistance = 0.255;
+        if (distance > kMaxCosineDistance) {
           continue;
         }
 
@@ -929,7 +961,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
 
         auto &cand = candidates[fid];
-        cand.path = path_str ? path_str : "";
+        cand.path = path_str;
         if (rank < cand.best_rank && content_str) {
           cand.best_rank = rank;
           cand.chunk_index = chunk_idx;
@@ -949,29 +981,46 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   }
 
   // Sparse lexical search via FTS BM25
-  const std::string clean_fts_text = parsed.text.empty() ? std::string(query_text) : parsed.text;
+  const std::string clean_fts_text =
+      parsed.text.empty() ? (parsed.mtime_cutoff > 0 ? "" : std::string(query_text)) : parsed.text;
   const std::string fts_query = sanitize_fts_query(clean_fts_text);
   if (!fts_query.empty()) {
-    const char *fts_sql = R"(
-      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
-      FROM chunks_fts fts
-      JOIN chunks c ON c.id = fts.rowid
-      JOIN files f ON f.id = c.file_id
-      WHERE chunks_fts MATCH ?
-      ORDER BY rank
-      LIMIT ?;
-    )";
+    // Build SQL: optionally add mtime filter.
+    const std::string fts_sql = parsed.mtime_cutoff > 0 ? R"(
+            SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
+            FROM chunks_fts fts
+            JOIN chunks c ON c.id = fts.rowid
+            JOIN files f ON f.id = c.file_id
+            WHERE chunks_fts MATCH ? AND f.mtime >= ?
+            ORDER BY rank
+            LIMIT ?;
+          )"
+                                                        : R"(
+            SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
+            FROM chunks_fts fts
+            JOIN chunks c ON c.id = fts.rowid
+            JOIN files f ON f.id = c.file_id
+            WHERE chunks_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?;
+          )";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(impl_->db, fts_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    if (sqlite3_prepare_v2(impl_->db, fts_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
       sqlite3_bind_text(stmt, 1, fts_query.c_str(), -1, SQLITE_STATIC);
-      sqlite3_bind_int(stmt, 2, top_k);
+      if (parsed.mtime_cutoff > 0) {
+        sqlite3_bind_int64(stmt, 2, parsed.mtime_cutoff);
+        sqlite3_bind_int(stmt, 3, top_k);
+      }
+      else {
+        sqlite3_bind_int(stmt, 2, top_k);
+      }
 
       int rank = 1;
       std::unordered_set<int64_t> seen_fts_files;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
-        if (path_str && !path_matches_category(path_str, parsed.category)) {
+        if (!path_str || !path_matches_category(path_str, parsed.category)) {
           continue;
         }
 
@@ -982,7 +1031,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
 
         auto &cand = candidates[fid];
-        cand.path = path_str ? path_str : "";
+        cand.path = path_str;
         if (rank < cand.best_rank && content_str) {
           cand.best_rank = rank;
           cand.chunk_index = chunk_idx;
@@ -1001,9 +1050,19 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
     }
   }
 
-  // Category browsing fallback when query is only a filter
-  if (candidates.empty() && parsed.category != QueryCategory::All && parsed.text.empty()) {
-    const char *recent_sql = R"(
+  // Filter / temporal browsing fallback when query text is empty
+  // (e.g. pure category "doc:", pure temporal "this week", or combined "doc: today")
+  if (candidates.empty() && parsed.text.empty() &&
+      (parsed.category != QueryCategory::All || parsed.mtime_cutoff > 0)) {
+    const std::string recent_sql = parsed.mtime_cutoff > 0 ? R"(
+      SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
+      FROM chunks c
+      JOIN files f ON f.id = c.file_id
+      WHERE c.chunk_index = 0 AND f.mtime >= ?
+      ORDER BY f.mtime DESC
+      LIMIT ?;
+    )"
+                                                           : R"(
       SELECT c.file_id, c.chunk_index, c.content, f.path, c.page_number, c.thumbnail_path
       FROM chunks c
       JOIN files f ON f.id = c.file_id
@@ -1012,12 +1071,18 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
       LIMIT ?;
     )";
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(impl_->db, recent_sql, -1, &stmt, nullptr) == SQLITE_OK) {
-      sqlite3_bind_int(stmt, 1, static_cast<int>(limit * kRecentFallbackMultiplier));
+    if (sqlite3_prepare_v2(impl_->db, recent_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+      if (parsed.mtime_cutoff > 0) {
+        sqlite3_bind_int64(stmt, 1, parsed.mtime_cutoff);
+        sqlite3_bind_int(stmt, 2, static_cast<int>(limit * kRecentFallbackMultiplier));
+      }
+      else {
+        sqlite3_bind_int(stmt, 1, static_cast<int>(limit * kRecentFallbackMultiplier));
+      }
       int rank = 1;
       while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
-        if (!path_matches_category(path_str ? path_str : "", parsed.category)) {
+        if (!path_str || !path_matches_category(path_str, parsed.category)) {
           continue;
         }
         int64_t fid = sqlite3_column_int64(stmt, 0);
@@ -1027,7 +1092,7 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         const char *thumb_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
 
         auto &cand = candidates[fid];
-        cand.path = path_str ? path_str : "";
+        cand.path = path_str;
         cand.best_rank = rank;
         cand.chunk_index = chunk_idx;
         cand.best_content = content_str ? content_str : "";
@@ -1046,16 +1111,18 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   }
 
   // Boost candidates whose filename matches query keywords
-  if (!query_text.empty()) {
+  const std::string fn_match_text =
+      parsed.text.empty() ? (parsed.mtime_cutoff > 0 ? "" : std::string(query_text)) : parsed.text;
+  if (!fn_match_text.empty()) {
     std::string clean_q;
-    for (const char ch : query_text) {
+    for (const char ch : fn_match_text) {
       if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '-') {
         clean_q += ch;
       }
     }
     if (clean_q.size() >= kMinFilenameMatchLength) {
       const char *fn_sql = R"(
-        SELECT id, path
+        SELECT id, path, mtime
         FROM files
         WHERE path LIKE ?
         LIMIT ?;
@@ -1070,7 +1137,16 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
         while (sqlite3_step(stmt) == SQLITE_ROW) {
           int64_t fid = sqlite3_column_int64(stmt, 0);
           const char *path_str = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+          int64_t mtime = sqlite3_column_int64(stmt, 2);
+          if (!path_str || !path_matches_category(path_str, parsed.category)) {
+            continue;
+          }
+          if (parsed.mtime_cutoff > 0 && mtime < parsed.mtime_cutoff) {
+            continue;
+          }
+
           auto &cand = candidates[fid];
+          cand.path = path_str;
           if (cand.snippet.empty()) {
             cand.snippet = cand.path;
           }
@@ -1086,6 +1162,10 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   results.reserve(candidates.size());
 
   for (auto &[fid, cand] : candidates) {
+    if (cand.path.empty() || !path_matches_category(cand.path, parsed.category)) {
+      continue;
+    }
+
     SearchResult res;
     res.file_id = fid;
     res.path = std::move(cand.path);
@@ -1127,6 +1207,71 @@ std::vector<SearchResult> Database::search_hybrid(const std::vector<float> &quer
   }
 
   return results;
+}
+
+std::string Database::get_file_text(std::string_view path)
+{
+  if (!is_open() || path.empty()) {
+    return {};
+  }
+  std::lock_guard<std::recursive_mutex> lock(impl_->mutex);
+
+  // Retrieve concatenated content from all indexed chunks of the file, ordered
+  // by chunk_index.  Capped at a reasonable limit to avoid huge strings.
+  constexpr int kMaxChars = 4096;
+  const char *sql = R"(
+    SELECT c.content
+    FROM chunks c
+    JOIN files f ON f.id = c.file_id
+    WHERE f.path = ?
+    ORDER BY c.chunk_index
+    LIMIT 10;
+  )";
+
+  sqlite3_stmt *stmt = nullptr;
+  std::string result;
+  if (sqlite3_prepare_v2(impl_->db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    sqlite3_bind_text(stmt, 1, path.data(), static_cast<int>(path.size()), SQLITE_STATIC);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      const char *text = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+      if (text) {
+        if (!result.empty()) {
+          result += ' ';
+        }
+        result += text;
+        if (static_cast<int>(result.size()) >= kMaxChars) {
+          result.resize(static_cast<size_t>(kMaxChars));
+          while (!result.empty() && (static_cast<unsigned char>(result.back()) & 0xC0) == 0x80) {
+            result.pop_back();
+          }
+          if (!result.empty() && (static_cast<unsigned char>(result.back()) & 0x80) != 0) {
+            result.pop_back();
+          }
+          break;
+        }
+      }
+    }
+    sqlite3_finalize(stmt);
+  }
+  return result;
+}
+
+bool Database::rename_file(std::string_view old_path, std::string_view new_path)
+{
+  if (!is_open() || old_path.empty() || new_path.empty()) {
+    return false;
+  }
+  std::lock_guard<std::recursive_mutex> lock(impl_->mutex);
+  const char *sql = "UPDATE files SET path = ? WHERE path = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  bool ok = false;
+  if (sqlite3_prepare_v2(impl_->db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    sqlite3_bind_text(stmt, 1, new_path.data(), static_cast<int>(new_path.size()), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, old_path.data(), static_cast<int>(old_path.size()), SQLITE_STATIC);
+    ok = sqlite3_step(stmt) == SQLITE_DONE && sqlite3_changes(impl_->db) > 0;
+    sqlite3_finalize(stmt);
+  }
+  return ok;
 }
 
 int64_t Database::total_files()
