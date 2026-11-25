@@ -433,11 +433,11 @@ void test_query_category_prefixes()
   std::cout << "  ✓ Query category prefixes and filtering passed." << std::endl;
 }
 
-void test_file_text_rename_and_temporal()
+void test_file_text_and_temporal()
 {
-  std::cout << "[Test] File text retrieval, rename, and temporal queries..." << std::endl;
+  std::cout << "[Test] File text retrieval and temporal queries..." << std::endl;
 
-  const std::string db_path = "/tmp/test_ft_rename_" + std::to_string(std::rand()) + ".db";
+  const std::string db_path = "/tmp/test_ft_temporal_" + std::to_string(std::rand()) + ".db";
   lazylook::Database db;
   TEST_ASSERT(db.open(db_path), "Database opened");
 
@@ -461,27 +461,19 @@ void test_file_text_rename_and_temporal()
   std::string non_existent = db.get_file_text("/does/not/exist.txt");
   TEST_ASSERT(non_existent.empty(), "get_file_text on non-existent file returns empty string");
 
-  // 2. Test rename_file
-  const std::string path_renamed = "/docs/budget_2026_final.pdf";
-  TEST_ASSERT(db.rename_file(path_recent, path_renamed), "rename_file returns true");
-  TEST_ASSERT(db.get_file(path_recent) == std::nullopt, "Old path no longer in database");
-  TEST_ASSERT(db.get_file(path_renamed).has_value(), "New path exists in database");
-  TEST_ASSERT(db.get_file_text(path_renamed).find("Financial Budget") != std::string::npos,
-              "New path maintains indexed chunk text");
-
-  // 3. Test temporal search query
-  // "Financial this week" -> should match only the recent file (now renamed to path_renamed)
+  // 2. Test temporal search query
+  // "Financial this week" -> should match only the recent file
   auto week_res = db.search_hybrid({}, "Financial this week", 10);
   TEST_ASSERT(week_res.size() == 1, "Only recent file matched with 'this week'");
-  TEST_ASSERT(week_res[0].path == path_renamed, "Matched file is path_renamed");
+  TEST_ASSERT(week_res[0].path == path_recent, "Matched file is path_recent");
 
-  // 4. Test pure temporal query (no keywords)
-  // "this week" alone -> should match path_renamed and NOT require literal words "this" or "week"
+  // 3. Test pure temporal query (no keywords)
+  // "this week" alone -> should match path_recent and NOT require literal words "this" or "week"
   auto pure_temporal_res = db.search_hybrid({}, "this week", 10);
   TEST_ASSERT(pure_temporal_res.size() == 1,
               "Pure temporal query matches 1 file within time window");
-  TEST_ASSERT(pure_temporal_res[0].path == path_renamed,
-              "Pure temporal query matches path_renamed");
+  TEST_ASSERT(pure_temporal_res[0].path == path_recent,
+              "Pure temporal query matches path_recent");
 
   // Unconstrained search -> should match both
   auto all_res = db.search_hybrid({}, "Financial", 10);
@@ -489,7 +481,7 @@ void test_file_text_rename_and_temporal()
 
   db.close();
   std::filesystem::remove(db_path);
-  std::cout << "  ✓ File text, rename, and temporal queries passed." << std::endl;
+  std::cout << "  ✓ File text and temporal queries passed." << std::endl;
 }
 
 int main()
@@ -505,7 +497,7 @@ int main()
   test_utf8_snippet_cleanliness();
   test_video_chunks_and_thumbnails();
   test_query_category_prefixes();
-  test_file_text_rename_and_temporal();
+  test_file_text_and_temporal();
 
   std::cout << "========================================" << std::endl;
   std::cout << "ALL DATABASE TESTS PASSED SUCCESSFULLY! " << std::endl;

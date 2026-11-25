@@ -35,7 +35,7 @@ SearchController::SearchController(QObject *parent) : QObject(parent)
   debounce_timer_.setInterval(kDebounceIntervalMs);
   connect(&debounce_timer_, &QTimer::timeout, this, [this]() {
     const QString current_q = query_.trimmed();
-    if (current_q.isEmpty()) {
+    if (current_q.isEmpty() && current_filter_.isEmpty()) {
       results_model_.clear();
       return;
     }
@@ -120,6 +120,14 @@ void SearchController::setCurrentFilter(const QString &filter)
   current_filter_ = filter;
   emit currentFilterChanged();
   results_model_.setFilter(filter);
+
+  const QString current_q = query_.trimmed();
+  if (current_q.isEmpty() && filter.isEmpty()) {
+    results_model_.clear();
+    return;
+  }
+  const uint64_t qid = ++query_counter_;
+  executeSearch(current_q, qid);
 }
 
 void SearchController::search(const QString &text)
@@ -137,16 +145,23 @@ void SearchController::executeSearch(const QString &query_text, uint64_t qid)
     ensureModelLoaded();
     const auto start_time = std::chrono::steady_clock::now();
 
+    auto parsed = Database::parse_query_category(q_str);
+    std::string db_query = q_str;
+    if (parsed.category == QueryCategory::All &&
+        (filter == "code" || filter == "doc" || filter == "image" ||
+         filter == "video" || filter == "audio" || filter == "media")) {
+      db_query = filter.toStdString() + (q_str.empty() ? ":" : ": " + q_str);
+    }
+
     std::vector<float> query_emb;
     if (model_loaded_ && filter != "exact") {
-      auto parsed = Database::parse_query_category(q_str);
-      std::string embed_text = parsed.text.empty() ? q_str : parsed.text;
+      std::string embed_text = parsed.text;
       if (!embed_text.empty()) {
         query_emb = embedder_.embed_query(embed_text);
       }
     }
 
-    auto results = db_.search_hybrid(query_emb, q_str, 50);
+    auto results = db_.search_hybrid(query_emb, db_query, 50);
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::steady_clock::now() - start_time)
@@ -226,111 +241,6 @@ void SearchController::copyImageText(const QString &path)
     return;
   }
   DesktopLauncher::copy_to_clipboard(text);
-}
-
-// ---------------------------------------------------------------------------
-// Feature: Smart rename
-// ---------------------------------------------------------------------------
-
-QString SearchController::suggestFileName(const QString &path)
-{
-  if (path.isEmpty()) {
-    return {};
-  }
-  const std::string raw = db_.get_file_text(path.toStdString());
-  if (raw.empty()) {
-    return {};
-  }
-  const QString full = QString::fromStdString(raw);
-  QString body;
-  const int ocr_idx = full.indexOf("\nText: ");
-  if (ocr_idx >= 0) {
-    body = full.mid(ocr_idx + 7).trimmed();
-  }
-  else {
-    const int nl = full.indexOf('\n');
-    body = (nl >= 0 ? full.mid(nl + 1) : full).trimmed();
-    if (body.startsWith("[Image]")) {
-      return {};
-    }
-  }
-
-  // Heuristic: take the first meaningful non-empty line of content (up to 60
-  // chars), clean it up into a valid filename slug.
-  const QStringList lines = body.split('\n', Qt::SkipEmptyParts);
-  QString candidate;
-  for (const QString &line : lines) {
-    const QString trimmed = line.trimmed();
-    if (trimmed.length() >= 4) {
-      candidate = trimmed.left(60);
-      break;
-    }
-  }
-  if (candidate.isEmpty()) {
-    return {};
-  }
-
-  // Convert to a safe filename slug: keep alphanumeric, replace spaces/special
-  // chars with hyphens, collapse repeated hyphens, strip leading/trailing ones.
-  QString slug;
-  slug.reserve(candidate.size());
-  bool prev_hyphen = false;
-  for (QChar ch : candidate) {
-    if (ch.isLetterOrNumber()) {
-      slug.append(ch.toLower());
-      prev_hyphen = false;
-    }
-    else if (!prev_hyphen && !slug.isEmpty()) {
-      slug.append('-');
-      prev_hyphen = true;
-    }
-  }
-  while (!slug.isEmpty() && slug.back() == '-') {
-    slug.chop(1);
-  }
-  return slug;
-}
-
-bool SearchController::renameFileTo(const QString &oldPath, const QString &newName)
-{
-  const QString trimmed = newName.trimmed();
-  if (oldPath.isEmpty() || trimmed.isEmpty()) {
-    return false;
-  }
-  // Reject directory traversal, special directory names, and path separators.
-  if (trimmed.contains('/') || trimmed.contains('\\') || trimmed == "." || trimmed == "..") {
-    return false;
-  }
-
-  const QFileInfo fi(oldPath);
-  const QString dir = fi.absolutePath();
-  const QString suffix = fi.suffix().isEmpty() ? QString{} : ('.' + fi.suffix());
-
-  QString newFileName = trimmed;
-  if (!suffix.isEmpty() && !trimmed.endsWith(suffix, Qt::CaseInsensitive)) {
-    newFileName += suffix;
-  }
-  const QString newPath = dir + '/' + newFileName;
-
-  // Refuse to overwrite an existing different file.
-  if (QFileInfo::exists(newPath) && newPath != oldPath) {
-    return false;
-  }
-
-  if (newPath == oldPath) {
-    return true;
-  }
-
-  if (!QFile::rename(oldPath, newPath)) {
-    return false;
-  }
-
-  // Update the database entry.
-  db_.rename_file(oldPath.toStdString(), newPath.toStdString());
-
-  // Update in-memory ResultsModel so UI reflects new name and subsequent actions work!
-  results_model_.updateFilePath(oldPath, newPath);
-  return true;
 }
 
 QStringList SearchController::watchedDirectories() const

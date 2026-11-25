@@ -1256,24 +1256,6 @@ std::string Database::get_file_text(std::string_view path)
   return result;
 }
 
-bool Database::rename_file(std::string_view old_path, std::string_view new_path)
-{
-  if (!is_open() || old_path.empty() || new_path.empty()) {
-    return false;
-  }
-  std::lock_guard<std::recursive_mutex> lock(impl_->mutex);
-  const char *sql = "UPDATE files SET path = ? WHERE path = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  bool ok = false;
-  if (sqlite3_prepare_v2(impl_->db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
-    sqlite3_bind_text(stmt, 1, new_path.data(), static_cast<int>(new_path.size()), SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, old_path.data(), static_cast<int>(old_path.size()), SQLITE_STATIC);
-    ok = sqlite3_step(stmt) == SQLITE_DONE && sqlite3_changes(impl_->db) > 0;
-    sqlite3_finalize(stmt);
-  }
-  return ok;
-}
-
 int64_t Database::total_files()
 {
   if (!is_open()) {

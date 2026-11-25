@@ -114,10 +114,6 @@ public:
   // the file is not in the database.
   std::string get_file_text(std::string_view path);
 
-  // Updates the stored file path in the database (used after a rename).
-  // Returns true on success.
-  bool rename_file(std::string_view old_path, std::string_view new_path);
-
   int64_t total_files();
   int64_t total_chunks();
 

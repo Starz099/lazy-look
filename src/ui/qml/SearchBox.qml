@@ -10,6 +10,8 @@ Item {
   signal upPressed()
   signal downPressed()
   signal returnPressed()
+  signal revealRequested()
+  signal copyPathRequested()
   signal escapePressed()
 
   function focusInput() {
@@ -145,8 +147,14 @@ Item {
         } else if (event.key === Qt.Key_Up) {
           root.upPressed();
           event.accepted = true;
+        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier)) {
+          root.revealRequested();
+          event.accepted = true;
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
           root.returnPressed();
+          event.accepted = true;
+        } else if (event.key === Qt.Key_C && (event.modifiers & Qt.ControlModifier) && ((event.modifiers & Qt.ShiftModifier) || input.selectedText.length === 0)) {
+          root.copyPathRequested();
           event.accepted = true;
         } else if (event.key === Qt.Key_Escape) {
           root.escapePressed();

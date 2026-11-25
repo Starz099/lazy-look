@@ -251,20 +251,4 @@ int ResultsModel::pageNumberAt(int index) const
   return 0;
 }
 
-bool ResultsModel::updateFilePath(const QString &old_path, const QString &new_path)
-{
-  for (size_t i = 0; i < results_.size(); ++i) {
-    if (results_[i].path == old_path) {
-      std::filesystem::path p(new_path.toStdString());
-      results_[i].path = new_path;
-      results_[i].fileName = QString::fromStdString(p.filename().string());
-      results_[i].directory = format_display_dir(p);
-      const QModelIndex idx = index(static_cast<int>(i));
-      emit dataChanged(idx, idx, {PathRole, FileNameRole, DirectoryRole});
-      return true;
-    }
-  }
-  return false;
-}
-
 } // namespace lazylook

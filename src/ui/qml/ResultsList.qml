@@ -8,6 +8,10 @@ Item {
   signal itemRevealed(string path)
   signal itemCopied(string path)
 
+  property bool menuOpening: false
+  property int openMenuCount: 0
+  readonly property bool menuOpen: openMenuCount > 0 || menuOpening
+
   function selectNext() {
     if (listView.count === 0) return;
     listView.currentIndex = Math.min(listView.count - 1, listView.currentIndex + 1);

@@ -19,7 +19,7 @@ Window {
   property bool settingsOpen: false
 
   onActiveChanged: {
-    if (!window.active && !window.settingsOpen) {
+    if (!window.active && !window.settingsOpen && !resultsList.menuOpen) {
       window.visible = false;
     } else if (window.active && !window.settingsOpen) {
       searchBox.focusInput();
@@ -74,6 +74,16 @@ Window {
         onReturnPressed: {
           if (!window.settingsOpen) {
             resultsList.activateCurrent();
+          }
+        }
+        onRevealRequested: {
+          if (!window.settingsOpen) {
+            resultsList.revealCurrent();
+          }
+        }
+        onCopyPathRequested: {
+          if (!window.settingsOpen) {
+            resultsList.copyCurrent();
           }
         }
         onEscapePressed: {
@@ -164,6 +174,14 @@ Window {
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
               width: Math.min(420, parent.width - 40)
+            }
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "Try \"budget from last week\" or prefixes like doc:, code:, video:, image:"
+              font.pixelSize: 11
+              color: "#7f857b"
+              horizontalAlignment: Text.AlignHCenter
             }
           }
         }

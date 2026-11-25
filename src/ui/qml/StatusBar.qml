@@ -10,8 +10,9 @@ Item {
     anchors.fill: parent
     visible: !searchController.isIndexing
 
-    // Left Result Count (Shown when search returns results, like DigUp)
+    // Left Result Count
     Text {
+      id: resultCountText
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       visible: searchController.resultsModel.rowCount() > 0
@@ -21,6 +22,17 @@ Item {
       }
       font.pixelSize: 11
       color: "#a0a59b"
+    }
+
+    // Center Shortcut Hints (when results are visible)
+    Text {
+      anchors.left: resultCountText.right
+      anchors.leftMargin: 12
+      anchors.verticalCenter: parent.verticalCenter
+      visible: searchController.resultsModel.rowCount() > 0
+      text: "↵ Open · Ctrl+↵ Folder · Ctrl+C Copy · ⋮ More"
+      font.pixelSize: 10
+      color: "#7f857b"
     }
 
     // Right Total Indexed Files

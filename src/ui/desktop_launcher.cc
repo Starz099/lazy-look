@@ -1,8 +1,11 @@
 #include "desktop_launcher.hh"
 
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileInfo>
@@ -19,7 +22,14 @@ namespace lazylook
 namespace
 {
 
-constexpr int kDBusReplyTimeoutMs = 800;
+constexpr int kDBusReplyTimeoutMs = 5000;
+
+bool is_dbus_timeout_error(const QDBusMessage &reply)
+{
+  const QString err = reply.errorName();
+  return err == QLatin1String("org.freedesktop.DBus.Error.NoReply") ||
+         err == QLatin1String("org.freedesktop.DBus.Error.TimedOut");
+}
 
 bool try_launch(const QString &executable, const QStringList &args)
 {
@@ -220,9 +230,28 @@ bool DesktopLauncher::reveal_in_folder(const QString &path)
                                                     "ShowItems");
   msg << QStringList{file_url} << QString("");
 
+  // Cold-starting a file manager via D-Bus activation can exceed 1s; use an
+  // async call with a generous timeout and only fall back when the service is
+  // actually unavailable rather than on a slow reply (which would open twice).
+  if (auto *app = QCoreApplication::instance()) {
+    const QString folder_path = fi.absolutePath();
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg, kDBusReplyTimeoutMs), app);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
+                     [folder_path](QDBusPendingCallWatcher *call) {
+                       const QDBusMessage reply = call->reply();
+                       if (reply.type() == QDBusMessage::ErrorMessage &&
+                           !is_dbus_timeout_error(reply)) {
+                         QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path));
+                       }
+                       call->deleteLater();
+                     });
+    return true;
+  }
+
   const QDBusMessage reply =
       QDBusConnection::sessionBus().call(msg, QDBus::BlockWithGui, kDBusReplyTimeoutMs);
-  if (reply.type() == QDBusMessage::ReplyMessage) {
+  if (reply.type() == QDBusMessage::ReplyMessage || is_dbus_timeout_error(reply)) {
     return true;
   }
 
