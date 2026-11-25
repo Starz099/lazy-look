@@ -20,14 +20,14 @@ Item {
         text: "Welcome to LazyLook"
         font.pixelSize: 18
         font.weight: Font.DemiBold
-        color: "#f5f5f5"
+        color: "#f3f5ef"
       }
 
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
         text: "Fast on-device semantic search for your documents, code, and media."
         font.pixelSize: 13
-        color: "#a8a6a3"
+        color: "#a0a59b"
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         width: parent.width
@@ -37,7 +37,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         text: "Describe what you're looking for in natural language to find content across your files."
         font.pixelSize: 12
-        color: "#8c8a87"
+        color: "#7f857b"
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         width: parent.width
@@ -56,7 +56,7 @@ Item {
         height: 32
         width: dlBtnRow.implicitWidth + 24
         radius: 6
-        color: dlMouse.containsMouse ? "#1d4ed8" : "#2563eb"
+        color: dlMouse.containsMouse ? "#9ee82a" : "#c8ff3d"
         visible: !searchController.isDownloadingModel
 
         Row {
@@ -68,7 +68,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             name: "download"
             size: 13
-            color: "#ffffff"
+            color: "#080a06"
           }
 
           Text {
@@ -76,7 +76,7 @@ Item {
             text: "Download AI Model (310 MB)"
             font.pixelSize: 12
             font.weight: Font.Medium
-            color: "#ffffff"
+            color: "#080a06"
           }
         }
 
@@ -107,7 +107,7 @@ Item {
             height: parent.height
             radius: 2
             width: parent.width * (Math.max(0, Math.min(100, searchController.modelDownloadProgress)) / 100.0)
-            color: "#2563eb"
+            color: "#c8ff3d"
           }
         }
 
@@ -120,7 +120,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: searchController.modelDownloadStatus
             font.pixelSize: 10
-            color: "#a8a6a3"
+            color: "#a0a59b"
           }
 
           Text {
@@ -128,7 +128,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: "Cancel"
             font.pixelSize: 10
-            color: cancelDlMouse.containsMouse ? "#ef4444" : "#8c8a87"
+            color: cancelDlMouse.containsMouse ? "#ef4444" : "#7f857b"
 
             MouseArea {
               id: cancelDlMouse
@@ -153,7 +153,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: "or"
         font.pixelSize: 12
-        color: "#8c8a87"
+        color: "#7f857b"
       }
 
       Text {
@@ -162,7 +162,7 @@ Item {
         text: "choose folders to index"
         font.pixelSize: 12
         font.weight: Font.Medium
-        color: linkMouse.containsMouse ? "#93c5fd" : "#60a5fa"
+        color: linkMouse.containsMouse ? "#d8ff70" : "#c8ff3d"
         font.underline: linkMouse.containsMouse
 
         MouseArea {

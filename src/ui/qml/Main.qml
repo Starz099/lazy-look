@@ -42,8 +42,8 @@ Window {
     id: card
     anchors.fill: parent
     radius: window.cardRadius
-    color: "#2d2c2a"
-    border.color: Qt.rgba(255, 255, 255, 0.09)
+    color: "#0b0d0a"
+    border.color: Qt.rgba(255, 255, 255, 0.10)
     border.width: 1
     clip: true
 
@@ -145,7 +145,7 @@ Window {
               anchors.horizontalCenter: parent.horizontalCenter
               name: "search"
               size: 24
-              color: "#5c5955"
+              color: "#7f857b"
             }
 
             Text {
@@ -153,14 +153,14 @@ Window {
               text: "Search Files & Documents"
               font.pixelSize: 14
               font.weight: Font.DemiBold
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: "Search naturally across all your code, documents, and media."
               font.pixelSize: 12
-              color: "#a8a6a3"
+              color: "#a0a59b"
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
               width: Math.min(420, parent.width - 40)
@@ -181,7 +181,7 @@ Window {
               anchors.horizontalCenter: parent.horizontalCenter
               name: "folder"
               size: 24
-              color: "#5c5955"
+              color: "#7f857b"
             }
 
             Text {
@@ -189,14 +189,14 @@ Window {
               text: "No Results Found"
               font.pixelSize: 14
               font.weight: Font.DemiBold
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: "Try broader keywords or verify indexed folders in settings."
               font.pixelSize: 12
-              color: "#a8a6a3"
+              color: "#a0a59b"
               horizontalAlignment: Text.AlignHCenter
               wrapMode: Text.WordWrap
               width: Math.min(380, parent.width - 40)

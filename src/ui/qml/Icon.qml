@@ -7,7 +7,7 @@ Item {
   height: size
 
   property int size: 16
-  property color color: "#a1a1aa"
+  property color color: "#a0a59b"
   property string name: "search"
   property real strokeWidth: 1.75
   property bool filled: false

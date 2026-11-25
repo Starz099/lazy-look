@@ -4,7 +4,7 @@ import QtQuick.Controls
 Rectangle {
   id: root
   radius: 12
-  color: "#252423"
+  color: "#0b0d0a"
   border.color: Qt.rgba(255, 255, 255, 0.08)
   border.width: 1
 
@@ -31,7 +31,7 @@ Rectangle {
           anchors.verticalCenter: parent.verticalCenter
           name: "settings"
           size: 15
-          color: "#f5f5f5"
+          color: "#f3f5ef"
         }
 
         Text {
@@ -39,7 +39,7 @@ Rectangle {
           text: "Preferences"
           font.pixelSize: 13
           font.weight: Font.DemiBold
-          color: "#f5f5f5"
+          color: "#f3f5ef"
         }
       }
 
@@ -55,7 +55,7 @@ Rectangle {
           anchors.centerIn: parent
           name: "close"
           size: 12
-          color: closeMouse.containsMouse ? "#f5f5f5" : "#a8a6a3"
+          color: closeMouse.containsMouse ? "#f3f5ef" : "#a0a59b"
         }
 
         MouseArea {
@@ -121,7 +121,7 @@ Rectangle {
             text: "Indexed Folders"
             font.pixelSize: 12
             font.weight: Font.DemiBold
-            color: "#f5f5f5"
+            color: "#f3f5ef"
           }
 
           Rectangle {
@@ -130,7 +130,7 @@ Rectangle {
             height: 24
             width: addBtnRow.implicitWidth + 16
             radius: 5
-            color: addMouse.containsMouse ? "#1d4ed8" : "#2563eb"
+            color: addMouse.containsMouse ? "#9ee82a" : "#c8ff3d"
 
             Row {
               id: addBtnRow
@@ -141,7 +141,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 name: "folder"
                 size: 11
-                color: "#ffffff"
+                color: "#080a06"
               }
 
               Text {
@@ -149,7 +149,7 @@ Rectangle {
                 text: "Add Folder"
                 font.pixelSize: 11
                 font.weight: Font.Medium
-                color: "#ffffff"
+                color: "#080a06"
               }
             }
 
@@ -170,8 +170,8 @@ Rectangle {
           width: parent.width
           height: Math.min(130, Math.max(64, dirList.count * 34 + 8))
           radius: 7
-          color: "#1e1d1c"
-          border.color: Qt.rgba(255, 255, 255, 0.06)
+          color: "#121511"
+          border.color: Qt.rgba(255, 255, 255, 0.07)
           border.width: 1
           clip: true
 
@@ -211,7 +211,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     name: "folder"
                     size: 13
-                    color: "#8c8a87"
+                    color: "#7f857b"
                   }
 
                   Text {
@@ -219,7 +219,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text: modelData
                     font.pixelSize: 11
-                    color: "#f5f5f5"
+                    color: "#f3f5ef"
                     elide: Text.ElideMiddle
                   }
                 }
@@ -237,7 +237,7 @@ Rectangle {
                     anchors.centerIn: parent
                     name: "trash"
                     size: 11
-                    color: delMouse.containsMouse ? "#ef4444" : "#8c8a87"
+                    color: delMouse.containsMouse ? "#ef4444" : "#7f857b"
                   }
 
                   MouseArea {
@@ -257,7 +257,7 @@ Rectangle {
               anchors.centerIn: parent
               text: "No indexed folders added yet."
               font.pixelSize: 11
-              color: "#6c6966"
+              color: "#7f857b"
               visible: dirList.count === 0
             }
           }
@@ -283,13 +283,13 @@ Rectangle {
               text: "Search Index"
               font.pixelSize: 12
               font.weight: Font.DemiBold
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               text: searchController.totalFiles + " files indexed (" + searchController.totalChunks + " chunks)"
               font.pixelSize: 11
-              color: "#8c8a87"
+              color: "#a0a59b"
             }
           }
 
@@ -347,7 +347,7 @@ Rectangle {
           width: parent.width
           text: searchController.indexingStatus
           font.pixelSize: 11
-          color: searchController.isIndexing ? "#60a5fa" : "#10b981"
+          color: searchController.isIndexing ? "#c8ff3d" : "#9ee82a"
           visible: searchController.indexingStatus.length > 0
           elide: Text.ElideRight
         }
@@ -372,13 +372,13 @@ Rectangle {
               text: "AI Neural Weights"
               font.pixelSize: 12
               font.weight: Font.DemiBold
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               text: searchController.isModelInstalled ? "EmbeddingGemma-2 Q8_0 active (768d vectors)" : "Weights not found (run setup script or download)"
               font.pixelSize: 11
-              color: searchController.isModelInstalled ? "#10b981" : "#f59e0b"
+              color: searchController.isModelInstalled ? "#9ee82a" : "#fbbf24"
             }
           }
 
@@ -392,7 +392,7 @@ Rectangle {
               width: dlModelRow.implicitWidth + 14
               radius: 5
               visible: !searchController.isModelInstalled && !searchController.isDownloadingModel
-              color: dlModelMouse.containsMouse ? "#1d4ed8" : "#2563eb"
+              color: dlModelMouse.containsMouse ? "#9ee82a" : "#c8ff3d"
 
               Row {
                 id: dlModelRow
@@ -403,7 +403,7 @@ Rectangle {
                   anchors.verticalCenter: parent.verticalCenter
                   name: "download"
                   size: 11
-                  color: "#ffffff"
+                  color: "#080a06"
                 }
 
                 Text {
@@ -411,7 +411,7 @@ Rectangle {
                   text: "Download"
                   font.pixelSize: 11
                   font.weight: Font.Medium
-                  color: "#ffffff"
+                  color: "#080a06"
                 }
               }
 
@@ -441,14 +441,14 @@ Rectangle {
                   anchors.verticalCenter: parent.verticalCenter
                   name: "folder"
                   size: 11
-                  color: "#a8a6a3"
+                  color: "#a0a59b"
                 }
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
                   text: "Models Folder"
                   font.pixelSize: 11
-                  color: "#f5f5f5"
+                  color: "#f3f5ef"
                 }
               }
 
@@ -481,7 +481,7 @@ Rectangle {
               height: parent.height
               radius: 2
               width: parent.width * (Math.max(0, Math.min(100, searchController.modelDownloadProgress)) / 100.0)
-              color: "#2563eb"
+              color: "#c8ff3d"
             }
           }
 
@@ -494,7 +494,7 @@ Rectangle {
               anchors.verticalCenter: parent.verticalCenter
               text: searchController.modelDownloadStatus
               font.pixelSize: 10
-              color: "#a8a6a3"
+              color: "#a0a59b"
             }
 
             Text {
@@ -502,7 +502,7 @@ Rectangle {
               anchors.verticalCenter: parent.verticalCenter
               text: "Cancel"
               font.pixelSize: 10
-              color: cancelDlSettingsMouse.containsMouse ? "#ef4444" : "#8c8a87"
+              color: cancelDlSettingsMouse.containsMouse ? "#ef4444" : "#7f857b"
 
               MouseArea {
                 id: cancelDlSettingsMouse
@@ -528,7 +528,7 @@ Rectangle {
           text: "System Preferences"
           font.pixelSize: 12
           font.weight: Font.DemiBold
-          color: "#f5f5f5"
+          color: "#f3f5ef"
         }
 
         // Auto-Sync Watcher Row
@@ -544,13 +544,13 @@ Rectangle {
             Text {
               text: "Background Inotify Watcher"
               font.pixelSize: 12
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               text: "Auto re-index modified files when saved to disk"
               font.pixelSize: 10
-              color: "#8c8a87"
+              color: "#7f857b"
             }
           }
 
@@ -561,7 +561,7 @@ Rectangle {
             width: 34
             height: 18
             radius: 9
-            color: searchController.autoSync ? "#2563eb" : Qt.rgba(255, 255, 255, 0.12)
+            color: searchController.autoSync ? "#c8ff3d" : Qt.rgba(255, 255, 255, 0.12)
             Behavior on color { ColorAnimation { duration: 120 } }
 
             Rectangle {
@@ -570,7 +570,7 @@ Rectangle {
               radius: 7
               anchors.verticalCenter: parent.verticalCenter
               x: searchController.autoSync ? parent.width - width - 2 : 2
-              color: "#ffffff"
+              color: searchController.autoSync ? "#080a06" : "#f3f5ef"
               Behavior on x { NumberAnimation { duration: 120 } }
             }
 
@@ -597,13 +597,13 @@ Rectangle {
             Text {
               text: "Launch on Login"
               font.pixelSize: 12
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               text: "Run daemon in background when logging in"
               font.pixelSize: 10
-              color: "#8c8a87"
+              color: "#7f857b"
             }
           }
 
@@ -614,7 +614,7 @@ Rectangle {
             width: 34
             height: 18
             radius: 9
-            color: searchController.launchOnStartup ? "#2563eb" : Qt.rgba(255, 255, 255, 0.12)
+            color: searchController.launchOnStartup ? "#c8ff3d" : Qt.rgba(255, 255, 255, 0.12)
             Behavior on color { ColorAnimation { duration: 120 } }
 
             Rectangle {
@@ -623,7 +623,7 @@ Rectangle {
               radius: 7
               anchors.verticalCenter: parent.verticalCenter
               x: searchController.launchOnStartup ? parent.width - width - 2 : 2
-              color: "#ffffff"
+              color: searchController.launchOnStartup ? "#080a06" : "#f3f5ef"
               Behavior on x { NumberAnimation { duration: 120 } }
             }
 
@@ -650,13 +650,13 @@ Rectangle {
             Text {
               text: "Memory Saver (Auto-Sleep)"
               font.pixelSize: 12
-              color: "#f5f5f5"
+              color: "#f3f5ef"
             }
 
             Text {
               text: "Unload model from GPU VRAM after 5 minutes of idle"
               font.pixelSize: 10
-              color: "#8c8a87"
+              color: "#7f857b"
             }
           }
 
@@ -667,7 +667,7 @@ Rectangle {
             width: 34
             height: 18
             radius: 9
-            color: searchController.memorySaver ? "#2563eb" : Qt.rgba(255, 255, 255, 0.12)
+            color: searchController.memorySaver ? "#c8ff3d" : Qt.rgba(255, 255, 255, 0.12)
             Behavior on color { ColorAnimation { duration: 120 } }
 
             Rectangle {
@@ -676,7 +676,7 @@ Rectangle {
               radius: 7
               anchors.verticalCenter: parent.verticalCenter
               x: searchController.memorySaver ? parent.width - width - 2 : 2
-              color: "#ffffff"
+              color: searchController.memorySaver ? "#080a06" : "#f3f5ef"
               Behavior on x { NumberAnimation { duration: 120 } }
             }
 
@@ -706,7 +706,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: "Exit Application"
             font.pixelSize: 12
-            color: "#8c8a87"
+            color: "#7f857b"
           }
 
           Rectangle {

@@ -20,7 +20,7 @@ Item {
         return count === 1 ? "1 result" : count + " results";
       }
       font.pixelSize: 11
-      color: "#8c8a87"
+      color: "#a0a59b"
     }
 
     // Right Total Indexed Files
@@ -29,7 +29,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: searchController.totalFiles > 0 ? (searchController.totalFiles + " files indexed") : ""
       font.pixelSize: 11
-      color: "#6c6966"
+      color: "#7f857b"
       visible: searchController.totalFiles > 0
     }
   }
@@ -52,7 +52,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: searchController.indexingStatus
       font.pixelSize: 11
-      color: "#60a5fa"
+      color: "#c8ff3d"
       elide: Text.ElideRight
       width: parent.width - 24
     }

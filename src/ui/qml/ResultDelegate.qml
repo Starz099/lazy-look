@@ -33,9 +33,9 @@ Item {
     anchors.topMargin: 1
     anchors.bottomMargin: 1
     radius: 8
-    // DigUp slate-blue selected highlight
-    color: root.isSelected ? "#3f5675" : (mouseArea.containsMouse ? Qt.rgba(255, 255, 255, 0.04) : "transparent")
-    border.color: root.isSelected ? Qt.rgba(255, 255, 255, 0.1) : "transparent"
+    // Lime-tinted selected highlight matching landing theme
+    color: root.isSelected ? Qt.rgba(200/255, 255/255, 61/255, 0.11) : (mouseArea.containsMouse ? Qt.rgba(255, 255, 255, 0.04) : "transparent")
+    border.color: root.isSelected ? Qt.rgba(200/255, 255/255, 61/255, 0.30) : "transparent"
     border.width: 1
 
     Behavior on color {
@@ -51,7 +51,7 @@ Item {
       anchors.left: parent.left
       anchors.leftMargin: 8
       anchors.verticalCenter: parent.verticalCenter
-      color: root.isSelected ? Qt.rgba(255, 255, 255, 0.16) : Qt.rgba(255, 255, 255, 0.06)
+      color: root.isSelected ? Qt.rgba(200/255, 255/255, 61/255, 0.16) : Qt.rgba(255, 255, 255, 0.05)
 
       Icon {
         anchors.centerIn: parent
@@ -65,14 +65,14 @@ Item {
           return "file";
         }
         color: {
-          if (root.isSelected) return "#ffffff";
+          if (root.isSelected) return "#c8ff3d";
           if (root.iconName === "image") return "#34d399";
           if (root.iconName === "video") return "#a78bfa";
           if (root.iconName === "audio") return "#f472b6";
           if (root.iconName === "code") return "#60a5fa";
           if (root.iconName === "pdf") return "#f87171";
           if (root.category === "doc") return "#fbbf24";
-          return "#94a3b8";
+          return "#a0a59b";
         }
       }
     }
@@ -88,7 +88,7 @@ Item {
       height: 20
       radius: 4
       clip: true
-      color: "#1e1d1c"
+      color: "#070807"
       border.color: Qt.rgba(255, 255, 255, 0.1)
       border.width: 1
 
@@ -129,7 +129,7 @@ Item {
             text: root.fileName
             font.pixelSize: 13
             font.weight: Font.Medium
-            color: root.isSelected ? "#ffffff" : "#f5f5f5"
+            color: root.isSelected ? "#ffffff" : "#f3f5ef"
             elide: Text.ElideRight
             maximumLineCount: 1
           }
@@ -140,7 +140,7 @@ Item {
             height: 16
             width: pageLabel.implicitWidth + 8
             radius: 4
-            color: root.isSelected ? "#2e435e" : "#3a3837"
+            color: root.isSelected ? Qt.rgba(200/255, 255/255, 61/255, 0.16) : Qt.rgba(255, 255, 255, 0.06)
             visible: root.pageNumber > 0
             anchors.verticalCenter: parent.verticalCenter
 
@@ -156,7 +156,7 @@ Item {
                 return "p. " + root.pageNumber;
               }
               font.pixelSize: 10
-              color: root.isSelected ? "#e0e8f5" : "#cccccc"
+              color: root.isSelected ? "#c8ff3d" : "#a0a59b"
             }
           }
         }
@@ -170,8 +170,8 @@ Item {
           height: 20
           radius: 4
           visible: root.renameActive
-          color: "#1a1918"
-          border.color: "#f59e0b"
+          color: "#070807"
+          border.color: "#c8ff3d"
           border.width: 1
 
           TextInput {
@@ -180,12 +180,12 @@ Item {
             anchors.leftMargin: 6
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
-            color: "#f5f5f5"
+            color: "#f3f5ef"
             font.pixelSize: 12
             text: root.renameValue
             selectByMouse: true
-            selectionColor: "#3f5675"
-            selectedTextColor: "#ffffff"
+            selectionColor: "#c8ff3d"
+            selectedTextColor: "#080a06"
             clip: true
 
             onTextChanged: {
@@ -215,7 +215,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           text: root.directory
           font.pixelSize: 11
-          color: root.isSelected ? "#c8d4e4" : "#9e9c99"
+          color: root.isSelected ? "#a0a59b" : "#7f857b"
           elide: Text.ElideMiddle
           maximumLineCount: 1
           visible: !root.renameActive
@@ -229,7 +229,7 @@ Item {
         text: root.snippet
         visible: root.snippet.length > 0 && !root.renameActive
         font.pixelSize: 11
-        color: root.isSelected ? "#d4e0ee" : "#a8a6a3"
+        color: root.isSelected ? "#c6cbbd" : "#a0a59b"
         elide: Text.ElideRight
         maximumLineCount: 1
       }
@@ -268,7 +268,7 @@ Item {
   Menu {
     id: contextMenu
     background: Rectangle {
-      color: "#2d2c2a"
+      color: "#0e110d"
       border.color: Qt.rgba(255, 255, 255, 0.12)
       border.width: 1
       radius: 8
@@ -283,12 +283,12 @@ Item {
       contentItem: Text {
         text: openMenuItem.text
         font.pixelSize: 13
-        color: "#f5f5f5"
+        color: openMenuItem.highlighted ? "#c8ff3d" : "#f3f5ef"
         leftPadding: 12
         verticalAlignment: Text.AlignVCenter
       }
       background: Rectangle {
-        color: openMenuItem.highlighted ? "#3f5675" : "transparent"
+        color: openMenuItem.highlighted ? Qt.rgba(200/255, 255/255, 61/255, 0.12) : "transparent"
         radius: 6
       }
     }
@@ -302,12 +302,12 @@ Item {
       contentItem: Text {
         text: revealMenuItem.text
         font.pixelSize: 13
-        color: "#f5f5f5"
+        color: revealMenuItem.highlighted ? "#c8ff3d" : "#f3f5ef"
         leftPadding: 12
         verticalAlignment: Text.AlignVCenter
       }
       background: Rectangle {
-        color: revealMenuItem.highlighted ? "#3f5675" : "transparent"
+        color: revealMenuItem.highlighted ? Qt.rgba(200/255, 255/255, 61/255, 0.12) : "transparent"
         radius: 6
       }
     }
@@ -321,12 +321,12 @@ Item {
       contentItem: Text {
         text: copyPathMenuItem.text
         font.pixelSize: 13
-        color: "#f5f5f5"
+        color: copyPathMenuItem.highlighted ? "#c8ff3d" : "#f3f5ef"
         leftPadding: 12
         verticalAlignment: Text.AlignVCenter
       }
       background: Rectangle {
-        color: copyPathMenuItem.highlighted ? "#3f5675" : "transparent"
+        color: copyPathMenuItem.highlighted ? Qt.rgba(200/255, 255/255, 61/255, 0.12) : "transparent"
         radius: 6
       }
     }
@@ -343,12 +343,12 @@ Item {
       contentItem: Text {
         text: copyOcrMenuItem.text
         font.pixelSize: 13
-        color: "#34d399"
+        color: "#c8ff3d"
         leftPadding: 12
         verticalAlignment: Text.AlignVCenter
       }
       background: Rectangle {
-        color: copyOcrMenuItem.highlighted ? "#3f5675" : "transparent"
+        color: copyOcrMenuItem.highlighted ? Qt.rgba(200/255, 255/255, 61/255, 0.12) : "transparent"
         radius: 6
       }
     }
@@ -381,12 +381,12 @@ Item {
       contentItem: Text {
         text: renameMenuItem.text
         font.pixelSize: 13
-        color: "#f5f5f5"
+        color: renameMenuItem.highlighted ? "#c8ff3d" : "#f3f5ef"
         leftPadding: 12
         verticalAlignment: Text.AlignVCenter
       }
       background: Rectangle {
-        color: renameMenuItem.highlighted ? "#3f5675" : "transparent"
+        color: renameMenuItem.highlighted ? Qt.rgba(200/255, 255/255, 61/255, 0.12) : "transparent"
         radius: 6
       }
     }

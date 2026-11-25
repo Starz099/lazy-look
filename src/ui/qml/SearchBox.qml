@@ -26,8 +26,8 @@ Item {
     id: boxContainer
     anchors.fill: parent
     radius: 9
-    color: "#242322"
-    border.color: input.activeFocus ? "#f59e0b" : Qt.rgba(255, 255, 255, 0.08)
+    color: "#121511"
+    border.color: input.activeFocus ? Qt.rgba(200/255, 255/255, 61/255, 0.55) : Qt.rgba(255, 255, 255, 0.08)
     border.width: 1
 
     Behavior on border.color {
@@ -42,7 +42,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       name: "search"
       size: 16
-      color: (input.text.length > 0 || input.activeFocus) ? "#f59e0b" : "#8c8a87"
+      color: (input.text.length > 0 || input.activeFocus) ? "#c8ff3d" : "#7f857b"
 
       Behavior on color {
         ColorAnimation { duration: 120 }
@@ -71,7 +71,7 @@ Item {
           anchors.centerIn: parent
           name: "close"
           size: 12
-          color: clearMouse.containsMouse ? "#f5f5f5" : "#a8a6a3"
+          color: clearMouse.containsMouse ? "#f3f5ef" : "#a0a59b"
         }
 
         MouseArea {
@@ -96,7 +96,7 @@ Item {
           anchors.centerIn: parent
           name: "settings"
           size: 14
-          color: settingsMouse.containsMouse ? "#f5f5f5" : "#a8a6a3"
+          color: settingsMouse.containsMouse ? "#f3f5ef" : "#a0a59b"
         }
 
         MouseArea {
@@ -117,19 +117,19 @@ Item {
       anchors.right: trailingControls.left
       anchors.rightMargin: 8
       anchors.verticalCenter: parent.verticalCenter
-      color: "#f5f5f5"
+      color: "#f3f5ef"
       font.pixelSize: 15
       font.weight: Font.Normal
       selectByMouse: true
-      selectionColor: "#3f5675"
-      selectedTextColor: "#ffffff"
+      selectionColor: "#c8ff3d"
+      selectedTextColor: "#080a06"
       clip: true
 
       Text {
         anchors.fill: parent
         anchors.verticalCenter: parent.verticalCenter
         text: "Type to search"
-        color: "#6c6966"
+        color: "#7f857b"
         font.pixelSize: 15
         visible: input.text.length === 0 && !input.inputMethodComposing
       }
